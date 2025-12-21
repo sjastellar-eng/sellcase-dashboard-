@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SellCase – Top Queries</title>
+  <style>
+    body {
+      font-family: Inter, Arial, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      padding: 24px;
+    }
+    h1 {
+      margin-bottom: 16px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #020617;
+    }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #1e293b;
+      text-align: left;
+    }
+    th {
+      background: #020617;
+      color: #94a3b8;
+      font-size: 13px;
+      text-transform: uppercase;
+    }
+    tr:hover {
+      background: #020617;
+    }
+    .conf-high { color: #22c55e; font-weight: 600; }
+    .conf-mid { color: #facc15; font-weight: 600; }
+    .conf-low { color: #ef4444; font-weight: 600; }
+    .badge {
+      background: #1e293b;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Top Search Queries</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>Query</th>
+      <th>Count</th>
+      <th>Category</th>
+      <th>Confidence</th>
+      <th>Source</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<script>
+const API = "https://sellcase-backend.onrender.com/analytics/top-search-queries-with-category?days=30&limit=50";
+
+fetch(API)
+  .then(r => r.json())
+  .then(data => {
+    const tbody = document.getElementById("rows");
+    data.forEach(item => {
+      const c = item.category;
+      let cls = "conf-low";
+      if (c.confidence >= 0.75) cls = "conf-high";
+      else if (c.confidence >= 0.4) cls = "conf-mid";
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${item.query}</td>
+        <td>${item.count}</td>
+        <td>${c.name ?? "-"}</td>
+        <td class="${cls}">${c.confidence}</td>
+        <td><span class="badge">${c.source}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  })
+  .catch(err => {
+    console.error(err);
+    alert("API error");
+  });
+</script>
+
+</body>
+</html>
