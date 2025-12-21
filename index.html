@@ -1,93 +1,89 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="uk">
 <head>
-  <meta charset="UTF-8" />
-  <title>SellCase – Top Queries</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SellCase Dashboard</title>
+
   <style>
     body {
-      font-family: Inter, Arial, sans-serif;
-      background: #0f172a;
-      color: #e5e7eb;
-      padding: 24px;
+      margin: 0;
+      padding: 32px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background: radial-gradient(1200px 600px at top, #0f1a2b, #050b17);
+      color: #e6eaf2;
     }
+
     h1 {
-      margin-bottom: 16px;
+      margin: 0 0 16px 0;
+      font-size: 28px;
+      font-weight: 600;
     }
+
+    #status {
+      margin-bottom: 16px;
+      opacity: 0.75;
+      font-size: 14px;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      background: #020617;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      overflow: hidden;
     }
+
+    thead {
+      background: rgba(255,255,255,0.05);
+    }
+
     th, td {
-      padding: 10px 12px;
-      border-bottom: 1px solid #1e293b;
+      padding: 12px 14px;
       text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      font-size: 14px;
     }
+
     th {
-      background: #020617;
-      color: #94a3b8;
-      font-size: 13px;
+      font-weight: 600;
       text-transform: uppercase;
-    }
-    tr:hover {
-      background: #020617;
-    }
-    .conf-high { color: #22c55e; font-weight: 600; }
-    .conf-mid { color: #facc15; font-weight: 600; }
-    .conf-low { color: #ef4444; font-weight: 600; }
-    .badge {
-      background: #1e293b;
-      padding: 2px 8px;
-      border-radius: 6px;
       font-size: 12px;
+      letter-spacing: 0.04em;
+      opacity: 0.8;
+    }
+
+    tr:hover td {
+      background: rgba(255,255,255,0.03);
+    }
+
+    .error {
+      color: #ff6b6b;
+      white-space: pre-wrap;
+      opacity: 1;
     }
   </style>
 </head>
+
 <body>
 
-<h1>Top Search Queries</h1>
+  <h1>Топ пошукових запитів</h1>
+  <div id="status">Завантаження…</div>
 
-<table>
-  <thead>
-    <tr>
-      <th>Query</th>
-      <th>Count</th>
-      <th>Category</th>
-      <th>Confidence</th>
-      <th>Source</th>
-    </tr>
-  </thead>
-  <tbody id="rows"></tbody>
-</table>
+  <table>
+    <thead>
+      <tr>
+        <th>Запит</th>
+        <th>К-сть</th>
+        <th>Категорія</th>
+        <th>Впевненість</th>
+        <th>Джерело</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
 
-<script>
-const API = "https://sellcase-backend.onrender.com/analytics/top-search-queries-with-category?days=30&limit=50";
-
-fetch(API)
-  .then(r => r.json())
-  .then(data => {
-    const tbody = document.getElementById("rows");
-    data.forEach(item => {
-      const c = item.category;
-      let cls = "conf-low";
-      if (c.confidence >= 0.75) cls = "conf-high";
-      else if (c.confidence >= 0.4) cls = "conf-mid";
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${item.query}</td>
-        <td>${item.count}</td>
-        <td>${c.name ?? "-"}</td>
-        <td class="${cls}">${c.confidence}</td>
-        <td><span class="badge">${c.source}</span></td>
-      `;
-      tbody.appendChild(tr);
-    });
-  })
-  .catch(err => {
-    console.error(err);
-    alert("API error");
-  });
-<script src="app.js"></script>  
+  <!-- ВАЖНО: никакого inline JS -->
+  <script src="app.js"></script>
 </body>
 </html>
