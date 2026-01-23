@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="uk">
+<html lang="uk" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,31 +7,45 @@
 
   <style>
     :root{
+      --bg0:#f6f7fb;
+      --bg1:#eef2ff;
+      --card: rgba(255,255,255,.85);
+      --card2: rgba(255,255,255,.95);
+      --stroke: rgba(15,23,42,.10);
+      --text:#0f172a;
+      --muted: rgba(15,23,42,.65);
+      --good: rgba(34,197,94,.95);
+      --warn: rgba(245,158,11,.95);
+      --bad:  rgba(239,68,68,.95);
+      --btn: rgba(37,99,235,.10);
+      --btn2: rgba(37,99,235,.16);
+      --shadow: 0 18px 50px rgba(2,6,23,.08);
+      --r: 18px;
+      --r2: 14px;
+    }
+
+    [data-theme="dark"]{
       --bg0:#070b12;
       --bg1:#0b1220;
       --card: rgba(255,255,255,.04);
       --card2: rgba(255,255,255,.06);
-      --stroke: rgba(255,255,255,.08);
+      --stroke: rgba(255,255,255,.10);
       --text:#e6eaf2;
       --muted: rgba(230,234,242,.7);
-      --good: rgba(80, 200, 120, .95);
-      --warn: rgba(255, 190, 90, .95);
-      --bad:  rgba(255, 107, 107, .95);
-      --btn: rgba(120, 160, 255, .16);
-      --btn2: rgba(120, 160, 255, .24);
+      --btn: rgba(120,160,255,.16);
+      --btn2: rgba(120,160,255,.24);
       --shadow: 0 20px 60px rgba(0,0,0,.35);
-      --r: 18px;
     }
 
-    *{ box-sizing:border-box; }
+    *{ box-sizing: border-box; }
     body{
       margin:0;
-      padding:20px;
+      padding:18px;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       color: var(--text);
       background:
-        radial-gradient(900px 500px at 10% 0%, rgba(90,140,255,.18), transparent 60%),
-        radial-gradient(900px 500px at 90% 10%, rgba(90,255,200,.10), transparent 55%),
+        radial-gradient(900px 500px at 10% 0%, rgba(37,99,235,.12), transparent 60%),
+        radial-gradient(900px 500px at 90% 10%, rgba(34,197,94,.10), transparent 55%),
         linear-gradient(180deg, var(--bg0), var(--bg1));
       min-height: 100vh;
     }
@@ -39,343 +53,349 @@
     .container{ max-width: 980px; margin: 0 auto; }
 
     .topbar{
-      display:flex; gap:12px; align-items:flex-start; justify-content:space-between;
-      margin-bottom:14px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 14px;
     }
+
     .title{
-      font-size: 26px; font-weight: 700; letter-spacing: .2px;
-      margin: 0;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
     }
-    .subtitle{
-      margin: 6px 0 0 0;
+    .title h1{
+      margin:0;
+      font-size: 26px;
+      letter-spacing: .2px;
+    }
+    .title p{
+      margin:0;
       color: var(--muted);
-      font-size: 14px;
-      line-height: 1.35;
+      font-size: 13px;
     }
+
+    .actions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
     .chip{
-      display:inline-flex; align-items:center; gap:8px;
-      padding: 8px 12px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
       border-radius: 999px;
-      background: rgba(255,255,255,.05);
+      background: var(--card);
       border: 1px solid var(--stroke);
+      box-shadow: 0 6px 20px rgba(2,6,23,.06);
+      font-size: 13px;
       color: var(--muted);
-      font-size: 12px;
-      white-space:nowrap;
+      white-space: nowrap;
     }
     .dot{
-      width:8px; height:8px; border-radius:50%;
-      background: rgba(255,255,255,.35);
+      width:10px; height:10px; border-radius:999px;
+      background: rgba(148,163,184,.9);
+      box-shadow: 0 0 0 4px rgba(148,163,184,.15);
     }
-    .dot.good{ background: var(--good); }
-    .dot.bad{ background: var(--bad); }
-    .dot.warn{ background: var(--warn); }
+    .dot.ok{ background: var(--good); box-shadow: 0 0 0 4px rgba(34,197,94,.18); }
+    .dot.bad{ background: var(--bad); box-shadow: 0 0 0 4px rgba(239,68,68,.18); }
+
+    .btn{
+      appearance:none;
+      border: 1px solid var(--stroke);
+      background: var(--card2);
+      border-radius: 999px;
+      padding: 8px 10px;
+      cursor:pointer;
+      font-weight:600;
+      font-size: 13px;
+      color: var(--text);
+      box-shadow: 0 8px 24px rgba(2,6,23,.08);
+      transition: transform .06s ease, background .12s ease;
+    }
+    .btn:hover{ background: var(--card); }
+    .btn:active{ transform: translateY(1px); }
 
     .card{
       background: var(--card);
       border: 1px solid var(--stroke);
       border-radius: var(--r);
       box-shadow: var(--shadow);
-      padding: 16px;
+      overflow:hidden;
+      margin-top: 12px;
     }
-    .card + .card{ margin-top: 14px; }
 
-    .cardhead{
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-      margin-bottom: 12px;
+    .cardHead{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 14px 16px;
+      background: linear-gradient(180deg, var(--card2), var(--card));
+      border-bottom: 1px solid var(--stroke);
     }
-    .cardtitle{
+    .cardHead h2{
       margin:0;
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: .2px;
+      font-size: 16px;
+      letter-spacing:.2px;
     }
-    .cardnote{
+    .cardHead .sub{
       color: var(--muted);
       font-size: 12px;
-      margin: 6px 0 0 0;
-      line-height: 1.35;
     }
+
+    .cardBody{ padding: 14px 16px; }
 
     .grid{
       display:grid;
-      grid-template-columns: 1.2fr .8fr;
+      grid-template-columns: 1fr;
       gap: 12px;
     }
-    @media (max-width: 860px){
-      .grid{ grid-template-columns: 1fr; }
+    @media(min-width: 860px){
+      .grid{ grid-template-columns: 1.1fr .9fr; }
     }
 
-    label{ display:block; font-size: 12px; color: var(--muted); margin-bottom:6px; }
-    input, button, select{
+    .formRow{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:flex-end;
+    }
+
+    .field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width: 140px;
+      flex: 1;
+    }
+    .field label{
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .input{
       width:100%;
+      padding: 10px 12px;
       border-radius: 12px;
       border: 1px solid var(--stroke);
-      background: rgba(255,255,255,.04);
+      background: var(--card2);
       color: var(--text);
-      padding: 12px 12px;
-      outline: none;
-    }
-    input::placeholder{ color: rgba(230,234,242,.35); }
-    input:focus{ border-color: rgba(120,160,255,.45); }
-
-    .row{
-      display:grid;
-      grid-template-columns: 1fr 140px 140px;
-      gap: 10px;
-      align-items:end;
-    }
-    @media (max-width: 640px){
-      .row{ grid-template-columns: 1fr; }
+      outline:none;
     }
 
-    .actions{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
-      margin-top: 10px;
-    }
-    .btn{
-      border:1px solid rgba(120,160,255,.35);
-      background: var(--btn);
-      cursor:pointer;
-      font-weight: 650;
-      letter-spacing: .2px;
-      transition: .15s ease;
-    }
-    .btn:hover{ background: var(--btn2); }
-    .btn.secondary{
-      border:1px solid var(--stroke);
-      background: rgba(255,255,255,.04);
-      font-weight: 600;
-      color: var(--muted);
-    }
-
-    .inline{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
-      margin-top: 8px;
-    }
-    .checkbox{
-      display:flex; align-items:center; gap:10px;
-      color: var(--muted);
-      font-size: 13px;
+    .check{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--stroke);
+      background: var(--card2);
+      color: var(--text);
       user-select:none;
     }
-    .checkbox input{ width:18px; height:18px; padding:0; }
+    .check small{ color: var(--muted); }
+
+    .btnPrimary{
+      background: var(--btn2);
+      border-color: rgba(37,99,235,.25);
+    }
+    .btnPrimary:hover{ background: var(--btn); }
+
+    .btnGhost{
+      background: transparent;
+      box-shadow:none;
+    }
 
     .status{
-      margin-top: 10px;
+      margin-top:10px;
       font-size: 13px;
       color: var(--muted);
       white-space: pre-wrap;
-      line-height: 1.4;
     }
     .status.error{ color: var(--bad); }
-    .status.ok{ color: rgba(230,234,242,.85); }
+    .status.ok{ color: rgba(15,23,42,.75); }
+    [data-theme="dark"] .status.ok{ color: rgba(230,234,242,.75); }
 
-    .kpis{
+    .kpiGrid{
       display:grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: 1fr 1fr;
       gap: 10px;
-      margin-top: 10px;
-    }
-    @media (max-width: 900px){
-      .kpis{ grid-template-columns: repeat(2, 1fr); }
     }
     .kpi{
-      padding: 14px;
-      border-radius: 16px;
+      background: var(--card2);
       border: 1px solid var(--stroke);
-      background: rgba(255,255,255,.03);
+      border-radius: var(--r2);
+      padding: 12px;
     }
-    .kpi .name{ color: var(--muted); font-size: 12px; }
-    .kpi .val{ margin-top: 8px; font-size: 18px; font-weight: 750; letter-spacing: .2px; }
-    .kpi .sub{ margin-top: 6px; font-size: 12px; color: rgba(230,234,242,.55); }
-
-    .chartbox{
-      margin-top: 12px;
-      border-radius: 16px;
-      border: 1px solid var(--stroke);
-      background: rgba(255,255,255,.03);
-      padding: 10px;
-    }
-    canvas{ width:100%; height: 240px; display:block; }
+    .kpi .k{ font-size: 12px; color: var(--muted); }
+    .kpi .v{ margin-top:6px; font-size: 20px; font-weight: 700; letter-spacing:.2px; }
+    .kpi .s{ margin-top:4px; font-size: 12px; color: var(--muted); }
 
     table{
       width:100%;
       border-collapse: collapse;
-      overflow: hidden;
-      border-radius: 16px;
+      overflow:hidden;
+      border-radius: var(--r2);
       border: 1px solid var(--stroke);
-      background: rgba(255,255,255,.03);
-      margin-top: 12px;
+      background: var(--card2);
     }
     thead{
-      background: rgba(255,255,255,.05);
+      background: rgba(148,163,184,.14);
     }
     th, td{
       padding: 10px 12px;
-      text-align: left;
-      border-bottom: 1px solid rgba(255,255,255,.06);
+      text-align:left;
+      border-bottom: 1px solid var(--stroke);
       font-size: 13px;
     }
     th{
       font-size: 12px;
+      letter-spacing:.06em;
       text-transform: uppercase;
-      letter-spacing: .06em;
-      color: rgba(230,234,242,.75);
-      font-weight: 700;
+      color: rgba(15,23,42,.7);
     }
-    tr:hover td{ background: rgba(255,255,255,.02); }
+    [data-theme="dark"] th{ color: rgba(230,234,242,.7); }
+    tr:hover td{ background: rgba(37,99,235,.06); }
 
-    .muted{ color: var(--muted); }
-    .small{ font-size: 12px; color: rgba(230,234,242,.55); }
-    .pill{
-      display:inline-flex; align-items:center;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.03);
-      color: rgba(230,234,242,.75);
+    .hint{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: var(--r2);
+      border: 1px dashed var(--stroke);
+      background: rgba(37,99,235,.06);
+      color: var(--muted);
       font-size: 12px;
     }
 
-    /* скрываем "токен" по умолчанию, но он есть */
-    .tokenRow{ display:none; }
-    .tokenRow.show{ display:block; }
+    .footerSpace{ height: 12px; }
   </style>
 </head>
 
 <body>
   <div class="container">
+
     <div class="topbar">
-      <div>
-        <h1 class="title">SellCase • Ринок (MVP)</h1>
-        <p class="subtitle">
-          Введи посилання на пошук OLX або ключову фразу — отримаєш історію цін, ключові метрики та прості висновки.
-        </p>
+      <div class="title">
+        <h1>SellCase • Аналітика ринку</h1>
+        <p>Працюючий MVP: історія ринку (OLX), KPI та таблиця. Далі додамо “розумні” інсайти (mini-LLM) після інвестицій.</p>
       </div>
-      <div class="chip" id="healthChip">
-        <span class="dot" id="healthDot"></span>
-        <span id="healthText">Перевірка сервера…</span>
+
+      <div class="actions">
+        <div class="chip" id="healthChip">
+          <span class="dot" id="healthDot"></span>
+          <span id="healthText">Перевіряємо сервер…</span>
+        </div>
+        <button class="btn" id="themeBtn" type="button">🌞 Світла</button>
       </div>
     </div>
 
+    <!-- Market -->
     <div class="card">
-      <div class="cardhead">
+      <div class="cardHead">
         <div>
-          <div class="cardtitle">Аналіз ринку (OLX)</div>
-          <div class="cardnote">Для нового користувача не потрібні “Project ID”. Ми створюємо проєкт автоматично з пошуку.</div>
-        </div>
-        <span class="pill" id="modePill">MVP</span>
-      </div>
-
-      <div class="grid">
-        <div>
-          <label for="searchInput">Посилання на пошук OLX або запит</label>
-          <input id="searchInput" placeholder="Напр.: https://www.olx.ua/uk/list/q-iphone-13/  або  iphone 13 pro 256" />
-
-          <div class="inline">
-            <label class="checkbox">
-              <input type="checkbox" id="onlyValid" checked />
-              Тільки валідні точки
-            </label>
-
-            <label class="checkbox">
-              <input type="checkbox" id="showToken" />
-              Ввести токен (якщо потрібно)
-            </label>
-          </div>
-
-          <div class="tokenRow" id="tokenRow">
-            <label for="authToken">Токен доступу (JWT)</label>
-            <input id="authToken" placeholder="Встав JWT (можна з Bearer або без)" />
-            <div class="small">Порада: для MVP інвестору можна вставити токен вручну. Потім зробимо нормальний логін.</div>
-          </div>
-
-          <div class="row" style="margin-top:10px;">
-            <div>
-              <label for="limit">Скільки точок показати</label>
-              <input id="limit" type="number" value="30" min="5" max="200" />
-            </div>
-            <div>
-              <label for="offset">Зсув (сторінка)</label>
-              <input id="offset" type="number" value="0" min="0" />
-            </div>
-            <div>
-              <button class="btn" id="runBtn">Порахувати</button>
-            </div>
-          </div>
-
-          <div class="actions">
-            <button class="btn secondary" id="prevBtn">← Попередні</button>
-            <button class="btn secondary" id="nextBtn">Наступні →</button>
-            <button class="btn secondary" id="copyLinkBtn">Скопіювати посилання</button>
-          </div>
-
-          <div class="status" id="status">Готово. Введи запит і натисни “Порахувати”.</div>
-        </div>
-
-        <div>
-          <div class="kpis">
-            <div class="kpi">
-              <div class="name">Остання медіана</div>
-              <div class="val" id="kpiLastMedian">—</div>
-              <div class="sub" id="kpiLastAt">—</div>
-            </div>
-
-            <div class="kpi">
-              <div class="name">Зміна медіани</div>
-              <div class="val" id="kpiDeltaMedian">—</div>
-              <div class="sub">від попередньої точки</div>
-            </div>
-
-            <div class="kpi">
-              <div class="name">Розкид (P75–P25)</div>
-              <div class="val" id="kpiSpread">—</div>
-              <div class="sub">оцінка конкуренції</div>
-            </div>
-
-            <div class="kpi">
-              <div class="name">Кількість оголошень</div>
-              <div class="val" id="kpiItems">—</div>
-              <div class="sub">у останній точці</div>
-            </div>
-          </div>
-
-          <div class="chartbox">
-            <div class="small muted" style="margin: 2px 0 8px 2px;">Графік: медіана / P25 / P75</div>
-            <canvas id="chart" width="900" height="280"></canvas>
-          </div>
-
-          <div class="card" style="margin-top:12px;">
-            <div class="cardhead" style="margin-bottom:6px;">
-              <div class="cardtitle">Висновки (MVP)</div>
-              <span class="pill">rules-based</span>
-            </div>
-            <div class="status ok" id="insights">
-              Після розрахунку тут зʼявляться короткі підказки.
-            </div>
-          </div>
+          <h2>Ринок (OLX) • Історія</h2>
+          <div class="sub">Завантаження історичних “знімків” видачі: кількість, медіана, P25/P75.</div>
         </div>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Дата</th>
-            <th>Оголошень</th>
-            <th>Медіана</th>
-            <th>P25</th>
-            <th>P75</th>
-          </tr>
-        </thead>
-        <tbody id="rows"></tbody>
-      </table>
+      <div class="cardBody">
+        <div class="grid">
+          <!-- left -->
+          <div>
+            <div class="formRow">
+              <div class="field" style="min-width:120px; max-width:200px;">
+                <label>Проєкт</label>
+                <input class="input" id="projectId" type="number" value="19" />
+              </div>
+
+              <div class="field" style="min-width:120px; max-width:200px;">
+                <label>Ліміт</label>
+                <input class="input" id="mhLimit" type="number" value="30" />
+              </div>
+
+              <div class="field" style="min-width:120px; max-width:200px;">
+                <label>Зсув (offset)</label>
+                <input class="input" id="mhOffset" type="number" value="0" />
+              </div>
+
+              <label class="check" style="flex: 1; min-width: 240px;">
+                <input id="mhOnlyValid" type="checkbox" checked />
+                <div>
+                  <div style="font-weight:600;">Тільки валідні точки</div>
+                  <small>Фільтрує “шумні” знімки</small>
+                </div>
+              </label>
+
+              <div class="field" style="min-width:220px; flex: 2;">
+                <label>Токен (JWT) — опціонально</label>
+                <input class="input" id="authToken" placeholder="встав JWT (можна без 'Bearer')" />
+              </div>
+
+              <button class="btn btnPrimary" id="mhLoadBtn" type="button">Завантажити</button>
+              <button class="btn btnGhost" id="mhPrevBtn" type="button">Назад</button>
+              <button class="btn btnGhost" id="mhNextBtn" type="button">Вперед</button>
+            </div>
+
+            <div class="status" id="mhStatus">Готово. Натисни “Завантажити”.</div>
+
+            <div class="hint">
+              Підказка: зараз поле “Проєкт” — тимчасово. У повній версії після реєстрації користувач бачитиме список “Мої проєкти” і нічого вручну вводити не доведеться.
+            </div>
+          </div>
+
+          <!-- right -->
+          <div>
+            <div class="kpiGrid">
+              <div class="kpi">
+                <div class="k">Остання медіана</div>
+                <div class="v" id="kpiLastMedian">—</div>
+                <div class="s" id="kpiLastMedianSub">—</div>
+              </div>
+              <div class="kpi">
+                <div class="k">Зміна медіани</div>
+                <div class="v" id="kpiDeltaMedian">—</div>
+                <div class="s" id="kpiDeltaMedianSub">—</div>
+              </div>
+              <div class="kpi">
+                <div class="k">Розкид (P75 − P25)</div>
+                <div class="v" id="kpiSpread">—</div>
+                <div class="s" id="kpiSpreadSub">—</div>
+              </div>
+              <div class="kpi">
+                <div class="k">К-сть оголошень (items)</div>
+                <div class="v" id="kpiItems">—</div>
+                <div class="s" id="kpiItemsSub">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Час</th>
+                <th>Оголошення</th>
+                <th>Медіана</th>
+                <th>P25</th>
+                <th>P75</th>
+              </tr>
+            </thead>
+            <tbody id="mhTbody"></tbody>
+          </table>
+        </div>
+
+        <div class="footerSpace"></div>
+      </div>
     </div>
 
-    <div class="small muted" style="margin-top:10px;">
-      Примітка: це MVP-екран продукту. Пізніше додамо реєстрацію, збереження проєктів, “обрані”, та AI-помічника.
-    </div>
   </div>
 
   <script src="app.js"></script>
 </body>
-            </html>
+</html>
