@@ -1,129 +1,191 @@
 <!doctype html>
 <html lang="uk">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SellCase Dashboard</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SellCase Dashboard</title>
 
-  <style>
-    body {
-      margin: 0;
-      padding: 32px;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-      background: radial-gradient(1200px 600px at top, #0f1a2b, #050b17);
-      color: #e6eaf2;
-    }
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        background: radial-gradient(1200px 600px at top, #0f1a2b, #05070f);
+        color: #e6eaf2;
+      }
 
-    h1 {
-      margin: 0 0 16px 0;
-      font-size: 28px;
-      font-weight: 600;
-    }
+      h1 {
+        margin: 0 0 16px 0;
+        font-size: 28px;
+        font-weight: 600;
+      }
 
-    #status {
-      margin-bottom: 16px;
-      opacity: 0.75;
-      font-size: 14px;
-    }
+      h2 {
+        margin: 0 0 12px 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: rgba(255,255,255,0.03);
-      border-radius: 8px;
-      overflow: hidden;
-    }
+      #status,
+      #mhStatus {
+        margin-bottom: 16px;
+        opacity: 0.75;
+        font-size: 14px;
+      }
 
-    thead {
-      background: rgba(255,255,255,0.05);
-    }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        overflow: hidden;
+      }
 
-    th, td {
-      padding: 12px 14px;
-      text-align: left;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      font-size: 14px;
-    }
+      thead {
+        background: rgba(255, 255, 255, 0.05);
+      }
 
-    th {
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 12px;
-      letter-spacing: 0.04em;
-      opacity: 0.8;
-    }
+      th,
+      td {
+        padding: 12px 14px;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 14px;
+      }
 
-    tr:hover td {
-      background: rgba(255,255,255,0.03);
-    }
+      th {
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        opacity: 0.8;
+      }
 
-    .error {
-      color: #ff6b6b;
-      white-space: pre-wrap;
-      opacity: 1;
-    }
-  </style>
-</head>
+      tr:hover td {
+        background: rgba(255, 255, 255, 0.03);
+      }
 
-<body>
+      .error {
+        color: #ff6b6b;
+        white-space: pre-wrap;
+        opacity: 1;
+      }
 
-  <h1>Топ пошукових запитів</h1>
-  <div id="status">Завантаження…</div>
+      hr {
+        margin: 24px 0;
+        opacity: 0.2;
+        border: none;
+        border-top: 1px solid rgba(255,255,255,0.2);
+      }
 
-  <table>
-    <thead>
-      <tr>
-        <th>Запит</th>
-        <th>К-сть</th>
-        <th>Категорія</th>
-        <th>Впевненість</th>
-        <th>Джерело</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
+      .controls {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-bottom: 12px;
+      }
 
-  <hr style="margin:24px 0; opacity:.2">
+      .controls label {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        font-size: 14px;
+        opacity: 0.9;
+      }
 
-<h2 style="margin: 0 0 12px 0;">Market History (OLX)</h2>
+      .controls input[type="number"],
+      .controls input[type="text"] {
+        padding: 6px 8px;
+        border-radius: 6px;
+        border: 1px solid rgba(255,255,255,0.15);
+        background: rgba(0,0,0,0.25);
+        color: #e6eaf2;
+        outline: none;
+      }
 
-<div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
-  <label>Project ID:
-    <input id="projectId" type="number" value="19" style="width:90px; padding:6px; margin-left:6px;">
-  </label>
+      .controls input[type="checkbox"] {
+        transform: translateY(1px);
+      }
 
-  <label>Limit:
-    <input id="mhLimit" type="number" value="10" style="width:70px; padding:6px; margin-left:6px;">
-  </label>
+      .controls button {
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.06);
+        color: #e6eaf2;
+        cursor: pointer;
+      }
 
-  <label>Offset:
-    <input id="mhOffset" type="number" value="0" style="width:70px; padding:6px; margin-left:6px;">
-  </label>
+      .controls button:hover {
+        background: rgba(255,255,255,0.10);
+      }
+    </style>
+  </head>
 
-  <label style="display:flex; gap:6px; align-items:center;">
-    <input id="mhOnlyValid" type="checkbox" checked>
-    only_valid
-  </label>
+  <body>
+    <h1>Топ пошукових запитів</h1>
+    <div id="status">Завантаження...</div>
 
-  <button id="mhLoadBtn" style="padding:8px 12px; cursor:pointer;">Load</button>
-</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Запит</th>
+          <th>К-сть</th>
+          <th>Категорія</th>
+          <th>Впевненість</th>
+          <th>Джерело</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
 
-<div id="mhStatus" style="opacity:.8; margin-bottom:12px;">—</div>
+    <hr />
 
-<table>
-  <thead>
-    <tr>
-      <th>taken_at</th>
-      <th>items_count</th>
-      <th>median</th>
-      <th>p25</th>
-      <th>p75</th>
-    </tr>
-  </thead>
-  <tbody id="mhTbody"></tbody>
-</table>
+    <h2>Market History (OLX)</h2>
 
-  <!-- ВАЖНО: никакого inline JS -->
-  <script src="app.js"></script>
-</body>
+    <div class="controls">
+      <label>Project ID:
+        <input id="projectId" type="number" value="19" style="width: 90px" />
+      </label>
+
+      <label>Limit:
+        <input id="mhLimit" type="number" value="10" style="width: 80px" />
+      </label>
+
+      <label>Offset:
+        <input id="mhOffset" type="number" value="0" style="width: 80px" />
+      </label>
+
+      <label style="gap:8px;">
+        <input id="mhOnlyValid" type="checkbox" checked />
+        only_valid
+      </label>
+
+      <!-- OPTIONAL: если эндпоинт требует Authorization -->
+      <label>Token:
+        <input id="authToken" type="text" placeholder="Bearer token (optional)" style="width: 260px" />
+      </label>
+
+      <button id="mhLoadBtn" type="button">Load</button>
+    </div>
+
+    <div id="mhStatus">—</div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>taken_at</th>
+          <th>items_count</th>
+          <th>median</th>
+          <th>p25</th>
+          <th>p75</th>
+        </tr>
+      </thead>
+      <tbody id="mhTbody"></tbody>
+    </table>
+
+    <!-- ВАЖНО: никакого inline JS -->
+    <script src="app.js"></script>
+  </body>
 </html>
