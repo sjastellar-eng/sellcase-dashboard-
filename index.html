@@ -3,346 +3,379 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SellCase Dashboard</title>
-
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <title>SellCase • Ринок (MVP)</title>
 
   <style>
     :root{
-      --bg0:#070a12;
-      --bg1:#0b1324;
-      --card:rgba(255,255,255,.04);
-      --card2:rgba(255,255,255,.06);
-      --line:rgba(255,255,255,.08);
+      --bg0:#070b12;
+      --bg1:#0b1220;
+      --card: rgba(255,255,255,.04);
+      --card2: rgba(255,255,255,.06);
+      --stroke: rgba(255,255,255,.08);
       --text:#e6eaf2;
-      --muted:rgba(230,234,242,.72);
-      --danger:#ff6b6b;
-      --ok:#6ee7b7;
-      --warn:#fbbf24;
-      --accent:#60a5fa;
+      --muted: rgba(230,234,242,.7);
+      --good: rgba(80, 200, 120, .95);
+      --warn: rgba(255, 190, 90, .95);
+      --bad:  rgba(255, 107, 107, .95);
+      --btn: rgba(120, 160, 255, .16);
+      --btn2: rgba(120, 160, 255, .24);
       --shadow: 0 20px 60px rgba(0,0,0,.35);
-      --radius: 14px;
+      --r: 18px;
     }
 
     *{ box-sizing:border-box; }
     body{
       margin:0;
-      padding:28px;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      padding:20px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--text);
       background:
-        radial-gradient(900px 420px at 15% 0%, rgba(96,165,250,.22), transparent 60%),
-        radial-gradient(900px 420px at 85% 5%, rgba(34,211,238,.14), transparent 55%),
-        radial-gradient(900px 420px at 50% 120%, rgba(167,139,250,.12), transparent 60%),
+        radial-gradient(900px 500px at 10% 0%, rgba(90,140,255,.18), transparent 60%),
+        radial-gradient(900px 500px at 90% 10%, rgba(90,255,200,.10), transparent 55%),
         linear-gradient(180deg, var(--bg0), var(--bg1));
-      color:var(--text);
+      min-height: 100vh;
     }
 
-    .wrap{ max-width: 1100px; margin: 0 auto; }
+    .container{ max-width: 980px; margin: 0 auto; }
 
     .topbar{
-      display:flex; gap:12px; align-items:center; justify-content:space-between;
-      margin-bottom:18px;
+      display:flex; gap:12px; align-items:flex-start; justify-content:space-between;
+      margin-bottom:14px;
     }
-    .brand{
-      display:flex; flex-direction:column; gap:4px;
-    }
-    h1{
-      margin:0;
-      font-size:26px;
-      letter-spacing:.2px;
-      font-weight:700;
+    .title{
+      font-size: 26px; font-weight: 700; letter-spacing: .2px;
+      margin: 0;
     }
     .subtitle{
-      color:var(--muted);
-      font-size:13px;
+      margin: 6px 0 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .chip{
+      display:inline-flex; align-items:center; gap:8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--stroke);
+      color: var(--muted);
+      font-size: 12px;
+      white-space:nowrap;
+    }
+    .dot{
+      width:8px; height:8px; border-radius:50%;
+      background: rgba(255,255,255,.35);
+    }
+    .dot.good{ background: var(--good); }
+    .dot.bad{ background: var(--bad); }
+    .dot.warn{ background: var(--warn); }
+
+    .card{
+      background: var(--card);
+      border: 1px solid var(--stroke);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+    .card + .card{ margin-top: 14px; }
+
+    .cardhead{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      margin-bottom: 12px;
+    }
+    .cardtitle{
+      margin:0;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+    .cardnote{
+      color: var(--muted);
+      font-size: 12px;
+      margin: 6px 0 0 0;
+      line-height: 1.35;
     }
 
     .grid{
       display:grid;
-      grid-template-columns: 1fr;
-      gap:14px;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 12px;
+    }
+    @media (max-width: 860px){
+      .grid{ grid-template-columns: 1fr; }
     }
 
-    .card{
-      background: var(--card);
-      border:1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-
-    .card-h{
-      padding:14px 16px;
-      border-bottom:1px solid var(--line);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
-    }
-
-    .card-title{
-      font-weight:650;
-      font-size:14px;
-      letter-spacing:.2px;
-      display:flex;
-      align-items:center;
-      gap:8px;
-    }
-
-    .badge{
-      font-size:12px;
-      padding:5px 8px;
-      border-radius:999px;
-      background: rgba(255,255,255,.06);
-      border:1px solid var(--line);
-      color:var(--muted);
-      white-space:nowrap;
-    }
-
-    .card-b{ padding:14px 16px; }
-
-    .controls{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      align-items:end;
-    }
-
-    label{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      font-size:12px;
-      color: var(--muted);
-      min-width: 120px;
-    }
-
-    input{
+    label{ display:block; font-size: 12px; color: var(--muted); margin-bottom:6px; }
+    input, button, select{
       width:100%;
-      padding:10px 10px;
-      border-radius:12px;
-      border:1px solid var(--line);
-      background: rgba(0,0,0,.20);
+      border-radius: 12px;
+      border: 1px solid var(--stroke);
+      background: rgba(255,255,255,.04);
       color: var(--text);
-      outline:none;
+      padding: 12px 12px;
+      outline: none;
     }
     input::placeholder{ color: rgba(230,234,242,.35); }
+    input:focus{ border-color: rgba(120,160,255,.45); }
 
     .row{
-      display:flex; gap:10px; align-items:center;
+      display:grid;
+      grid-template-columns: 1fr 140px 140px;
+      gap: 10px;
+      align-items:end;
+    }
+    @media (max-width: 640px){
+      .row{ grid-template-columns: 1fr; }
     }
 
+    .actions{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      margin-top: 10px;
+    }
     .btn{
-      padding:10px 14px;
-      border-radius:12px;
-      border:1px solid rgba(96,165,250,.35);
-      background: rgba(96,165,250,.14);
-      color: var(--text);
+      border:1px solid rgba(120,160,255,.35);
+      background: var(--btn);
       cursor:pointer;
-      font-weight:650;
-      letter-spacing:.15px;
+      font-weight: 650;
+      letter-spacing: .2px;
+      transition: .15s ease;
     }
-    .btn:active{ transform: translateY(1px); }
+    .btn:hover{ background: var(--btn2); }
     .btn.secondary{
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.05);
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.04);
+      font-weight: 600;
       color: var(--muted);
-      font-weight:600;
     }
+
+    .inline{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      margin-top: 8px;
+    }
+    .checkbox{
+      display:flex; align-items:center; gap:10px;
+      color: var(--muted);
+      font-size: 13px;
+      user-select:none;
+    }
+    .checkbox input{ width:18px; height:18px; padding:0; }
 
     .status{
-      margin-top:10px;
+      margin-top: 10px;
+      font-size: 13px;
       color: var(--muted);
-      font-size:13px;
-      white-space:pre-wrap;
+      white-space: pre-wrap;
+      line-height: 1.4;
     }
-    .status.error{ color: var(--danger); }
+    .status.error{ color: var(--bad); }
+    .status.ok{ color: rgba(230,234,242,.85); }
 
     .kpis{
       display:grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap:10px;
-      margin-top:12px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    @media (max-width: 900px){
+      .kpis{ grid-template-columns: repeat(2, 1fr); }
     }
     .kpi{
-      padding:12px;
-      border-radius: 14px;
-      border:1px solid var(--line);
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid var(--stroke);
       background: rgba(255,255,255,.03);
     }
-    .kpi .k{ color: var(--muted); font-size:12px; }
-    .kpi .v{ font-size:18px; font-weight:750; margin-top:6px; }
-    .kpi .s{ font-size:12px; margin-top:6px; color: var(--muted); }
-    .up{ color: var(--ok); }
-    .down{ color: var(--danger); }
-    .flat{ color: var(--muted); }
+    .kpi .name{ color: var(--muted); font-size: 12px; }
+    .kpi .val{ margin-top: 8px; font-size: 18px; font-weight: 750; letter-spacing: .2px; }
+    .kpi .sub{ margin-top: 6px; font-size: 12px; color: rgba(230,234,242,.55); }
 
-    .two{
-      display:grid;
-      grid-template-columns: 1.35fr .65fr;
-      gap:12px;
-      align-items:start;
-    }
-
-    .insights{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
-    .ins{
-      border:1px solid var(--line);
+    .chartbox{
+      margin-top: 12px;
+      border-radius: 16px;
+      border: 1px solid var(--stroke);
       background: rgba(255,255,255,.03);
-      border-radius: 14px;
-      padding:12px;
+      padding: 10px;
     }
-    .ins .t{ font-weight:650; font-size:13px; }
-    .ins .d{ margin-top:6px; color:var(--muted); font-size:13px; line-height:1.35; }
+    canvas{ width:100%; height: 240px; display:block; }
 
     table{
       width:100%;
-      border-collapse:collapse;
-      overflow:hidden;
-      border-radius: 14px;
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.02);
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 16px;
+      border: 1px solid var(--stroke);
+      background: rgba(255,255,255,.03);
+      margin-top: 12px;
     }
-    thead{ background: rgba(255,255,255,.06); }
+    thead{
+      background: rgba(255,255,255,.05);
+    }
     th, td{
-      text-align:left;
-      padding:12px 12px;
-      border-bottom:1px solid rgba(255,255,255,.06);
-      font-size:13px;
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      font-size: 13px;
     }
     th{
-      text-transform:uppercase;
-      letter-spacing:.06em;
-      font-size:11px;
-      color: rgba(230,234,242,.72);
-      font-weight:700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: rgba(230,234,242,.75);
+      font-weight: 700;
     }
-    tr:hover td{ background: rgba(255,255,255,.03); }
+    tr:hover td{ background: rgba(255,255,255,.02); }
 
-    .hr{
-      height:1px;
-      background: rgba(255,255,255,.08);
-      border:0;
-      margin: 10px 0;
+    .muted{ color: var(--muted); }
+    .small{ font-size: 12px; color: rgba(230,234,242,.55); }
+    .pill{
+      display:inline-flex; align-items:center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.03);
+      color: rgba(230,234,242,.75);
+      font-size: 12px;
     }
 
-    @media (max-width: 980px){
-      .two{ grid-template-columns: 1fr; }
-      .kpis{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      body{ padding:18px; }
-    }
+    /* скрываем "токен" по умолчанию, но он есть */
+    .tokenRow{ display:none; }
+    .tokenRow.show{ display:block; }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
+  <div class="container">
     <div class="topbar">
-      <div class="brand">
-        <h1>SellCase • Market MVP</h1>
-        <div class="subtitle">Рабочее демо рынка: график, KPI, инсайты и история (OLX).</div>
+      <div>
+        <h1 class="title">SellCase • Ринок (MVP)</h1>
+        <p class="subtitle">
+          Введи посилання на пошук OLX або ключову фразу — отримаєш історію цін, ключові метрики та прості висновки.
+        </p>
       </div>
-      <div class="badge" id="appBadge">Ready</div>
+      <div class="chip" id="healthChip">
+        <span class="dot" id="healthDot"></span>
+        <span id="healthText">Перевірка сервера…</span>
+      </div>
     </div>
 
-    <!-- Market MVP -->
     <div class="card">
-      <div class="card-h">
-        <div class="card-title">Market History (OLX)</div>
-        <div class="badge" id="mhMeta">—</div>
+      <div class="cardhead">
+        <div>
+          <div class="cardtitle">Аналіз ринку (OLX)</div>
+          <div class="cardnote">Для нового користувача не потрібні “Project ID”. Ми створюємо проєкт автоматично з пошуку.</div>
+        </div>
+        <span class="pill" id="modePill">MVP</span>
       </div>
 
-      <div class="card-b">
-        <div class="controls">
-          <label>Project ID
-            <input id="projectId" type="number" value="19" />
-          </label>
+      <div class="grid">
+        <div>
+          <label for="searchInput">Посилання на пошук OLX або запит</label>
+          <input id="searchInput" placeholder="Напр.: https://www.olx.ua/uk/list/q-iphone-13/  або  iphone 13 pro 256" />
 
-          <label>Limit
-            <input id="mhLimit" type="number" value="30" />
-          </label>
+          <div class="inline">
+            <label class="checkbox">
+              <input type="checkbox" id="onlyValid" checked />
+              Тільки валідні точки
+            </label>
 
-          <label>Offset
-            <input id="mhOffset" type="number" value="0" />
-          </label>
+            <label class="checkbox">
+              <input type="checkbox" id="showToken" />
+              Ввести токен (якщо потрібно)
+            </label>
+          </div>
 
-          <label>only_valid
-            <div class="row">
-              <input id="mhOnlyValid" type="checkbox" checked style="width:18px;height:18px;margin:0;" />
-              <span style="color:var(--muted);font-size:13px;">только валидные точки</span>
+          <div class="tokenRow" id="tokenRow">
+            <label for="authToken">Токен доступу (JWT)</label>
+            <input id="authToken" placeholder="Встав JWT (можна з Bearer або без)" />
+            <div class="small">Порада: для MVP інвестору можна вставити токен вручну. Потім зробимо нормальний логін.</div>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="limit">Скільки точок показати</label>
+              <input id="limit" type="number" value="30" min="5" max="200" />
             </div>
-          </label>
-
-          <label style="min-width: 280px; flex: 1;">Token (JWT)
-            <input id="authToken" type="text" placeholder="вставь JWT без 'Bearer ' (или можно с ним)" />
-          </label>
-
-          <button class="btn" id="mhLoadBtn">Load</button>
-          <button class="btn secondary" id="mhPrevBtn">Prev</button>
-          <button class="btn secondary" id="mhNextBtn">Next</button>
-        </div>
-
-        <div class="status" id="mhStatus">—</div>
-
-        <div class="kpis" id="kpis">
-          <div class="kpi"><div class="k">Last median</div><div class="v" id="k_lastMedian">—</div><div class="s" id="k_lastMedianS">—</div></div>
-          <div class="kpi"><div class="k">Δ median</div><div class="v" id="k_deltaMedian">—</div><div class="s" id="k_deltaMedianS">—</div></div>
-          <div class="kpi"><div class="k">Spread (p75-p25)</div><div class="v" id="k_spread">—</div><div class="s" id="k_spreadS">—</div></div>
-          <div class="kpi"><div class="k">Items count</div><div class="v" id="k_items">—</div><div class="s" id="k_itemsS">—</div></div>
-        </div>
-
-        <hr class="hr" />
-
-        <div class="two">
-          <div class="card" style="box-shadow:none;">
-            <div class="card-h">
-              <div class="card-title">Chart</div>
-              <div class="badge">median / p25 / p75</div>
+            <div>
+              <label for="offset">Зсув (сторінка)</label>
+              <input id="offset" type="number" value="0" min="0" />
             </div>
-            <div class="card-b">
-              <canvas id="mhChart" height="120"></canvas>
+            <div>
+              <button class="btn" id="runBtn">Порахувати</button>
             </div>
           </div>
 
-          <div class="card" style="box-shadow:none;">
-            <div class="card-h">
-              <div class="card-title">Insights (MVP)</div>
-              <div class="badge">rules-based</div>
+          <div class="actions">
+            <button class="btn secondary" id="prevBtn">← Попередні</button>
+            <button class="btn secondary" id="nextBtn">Наступні →</button>
+            <button class="btn secondary" id="copyLinkBtn">Скопіювати посилання</button>
+          </div>
+
+          <div class="status" id="status">Готово. Введи запит і натисни “Порахувати”.</div>
+        </div>
+
+        <div>
+          <div class="kpis">
+            <div class="kpi">
+              <div class="name">Остання медіана</div>
+              <div class="val" id="kpiLastMedian">—</div>
+              <div class="sub" id="kpiLastAt">—</div>
             </div>
-            <div class="card-b">
-              <div class="insights" id="mhInsights">
-                <div class="ins">
-                  <div class="t">Готово к работе</div>
-                  <div class="d">Нажми Load — получишь график, KPI и выводы по реальным точкам рынка.</div>
-                </div>
-              </div>
+
+            <div class="kpi">
+              <div class="name">Зміна медіани</div>
+              <div class="val" id="kpiDeltaMedian">—</div>
+              <div class="sub">від попередньої точки</div>
+            </div>
+
+            <div class="kpi">
+              <div class="name">Розкид (P75–P25)</div>
+              <div class="val" id="kpiSpread">—</div>
+              <div class="sub">оцінка конкуренції</div>
+            </div>
+
+            <div class="kpi">
+              <div class="name">Кількість оголошень</div>
+              <div class="val" id="kpiItems">—</div>
+              <div class="sub">у останній точці</div>
+            </div>
+          </div>
+
+          <div class="chartbox">
+            <div class="small muted" style="margin: 2px 0 8px 2px;">Графік: медіана / P25 / P75</div>
+            <canvas id="chart" width="900" height="280"></canvas>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <div class="cardhead" style="margin-bottom:6px;">
+              <div class="cardtitle">Висновки (MVP)</div>
+              <span class="pill">rules-based</span>
+            </div>
+            <div class="status ok" id="insights">
+              Після розрахунку тут зʼявляться короткі підказки.
             </div>
           </div>
         </div>
-
-        <hr class="hr" />
-
-        <table>
-          <thead>
-            <tr>
-              <th>taken_at</th>
-              <th>items_count</th>
-              <th>median</th>
-              <th>p25</th>
-              <th>p75</th>
-            </tr>
-          </thead>
-          <tbody id="mhTbody"></tbody>
-        </table>
       </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>Оголошень</th>
+            <th>Медіана</th>
+            <th>P25</th>
+            <th>P75</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <div class="small muted" style="margin-top:10px;">
+      Примітка: це MVP-екран продукту. Пізніше додамо реєстрацію, збереження проєктів, “обрані”, та AI-помічника.
     </div>
   </div>
 
-  <!-- IMPORTANT: no inline JS -->
   <script src="app.js"></script>
 </body>
-</html>
+            </html>
