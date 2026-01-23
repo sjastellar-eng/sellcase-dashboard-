@@ -83,6 +83,46 @@
     <tbody id="tbody"></tbody>
   </table>
 
+  <hr style="margin:24px 0; opacity:.2">
+
+<h2 style="margin: 0 0 12px 0;">Market History (OLX)</h2>
+
+<div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+  <label>Project ID:
+    <input id="projectId" type="number" value="19" style="width:90px; padding:6px; margin-left:6px;">
+  </label>
+
+  <label>Limit:
+    <input id="mhLimit" type="number" value="10" style="width:70px; padding:6px; margin-left:6px;">
+  </label>
+
+  <label>Offset:
+    <input id="mhOffset" type="number" value="0" style="width:70px; padding:6px; margin-left:6px;">
+  </label>
+
+  <label style="display:flex; gap:6px; align-items:center;">
+    <input id="mhOnlyValid" type="checkbox" checked>
+    only_valid
+  </label>
+
+  <button id="mhLoadBtn" style="padding:8px 12px; cursor:pointer;">Load</button>
+</div>
+
+<div id="mhStatus" style="opacity:.8; margin-bottom:12px;">—</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>taken_at</th>
+      <th>items_count</th>
+      <th>median</th>
+      <th>p25</th>
+      <th>p75</th>
+    </tr>
+  </thead>
+  <tbody id="mhTbody"></tbody>
+</table>
+
   <!-- ВАЖНО: никакого inline JS -->
   <script src="app.js"></script>
 </body>
