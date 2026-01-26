@@ -2,541 +2,524 @@
 <html lang="uk">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SellCase — Аналітика ринку</title>
 
   <style>
     :root{
       --bg:#f6f8fc;
       --card:#ffffff;
-      --text:#111827;
-      --muted:#6b7280;
-      --line:#e5e7eb;
-      --brand:#2563eb;
-      --brand2:#1d4ed8;
-      --ok:#16a34a;
-      --warn:#b45309;
-      --bad:#dc2626;
-      --shadow: 0 10px 30px rgba(17,24,39,.08);
-      --radius: 16px;
+      --text:#0f172a;
+      --muted:#64748b;
+      --line:#e6eaf2;
+      --accent:#2563eb;
+      --accent2:#10b981;
+      --danger:#ef4444;
+      --shadow: 0 10px 30px rgba(15, 23, 42, .08);
+      --radius: 18px;
     }
 
     *{box-sizing:border-box}
     body{
       margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background: radial-gradient(1200px 600px at 50% -20%, rgba(37,99,235,.16), transparent 60%), var(--bg);
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(37,99,235,.10), transparent 60%),
+                  radial-gradient(900px 500px at 90% 10%, rgba(16,185,129,.10), transparent 55%),
+                  var(--bg);
       color:var(--text);
     }
 
-    a{color:var(--brand); text-decoration:none}
-    a:hover{text-decoration:underline}
-
-    .wrap{max-width:1100px; margin:0 auto; padding:18px 16px 56px}
+    a{color:inherit}
+    .container{max-width:1060px; margin:0 auto; padding:20px 16px 40px;}
     .topbar{
       display:flex; align-items:center; justify-content:space-between;
-      gap:12px; padding:10px 0 14px;
+      gap:14px; padding:12px 14px;
+      background: rgba(255,255,255,.75);
+      border:1px solid var(--line);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      backdrop-filter: blur(10px);
+      position: sticky; top: 10px; z-index: 10;
     }
     .brand{
-      display:flex; align-items:center; gap:10px;
-      font-weight:800; letter-spacing:.2px;
+      display:flex; gap:10px; align-items:center; min-width: 220px;
     }
     .logo{
-      width:34px; height:34px; border-radius:10px;
-      background: linear-gradient(135deg, var(--brand), #60a5fa);
-      display:grid; place-items:center; color:white;
-      box-shadow: 0 10px 18px rgba(37,99,235,.22);
-      flex:0 0 auto;
+      width:38px; height:38px; border-radius: 12px;
+      background: linear-gradient(135deg, rgba(37,99,235,.15), rgba(16,185,129,.15));
+      border:1px solid var(--line);
+      display:flex; align-items:center; justify-content:center;
     }
-    .brand small{display:block; font-weight:600; color:var(--muted); margin-top:2px; letter-spacing:0}
+    .brand h1{font-size:16px; margin:0; line-height:1.1;}
+    .brand p{margin:2px 0 0; font-size:12px; color:var(--muted);}
 
-    .status-pill{
-      display:flex; align-items:center; gap:8px;
-      background:var(--card); border:1px solid var(--line);
-      border-radius:999px; padding:8px 12px;
-      box-shadow: 0 6px 16px rgba(17,24,39,.06);
-      color:var(--muted);
-      font-weight:600;
+    .nav{
+      display:flex; gap:8px; align-items:center; flex-wrap: wrap; justify-content:center;
+    }
+    .tab{
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius: 999px;
+      padding:9px 12px;
+      font-size:13px;
+      color: var(--muted);
+      cursor:pointer;
+      display:flex; gap:8px; align-items:center;
+      user-select:none;
+    }
+    .tab[aria-selected="true"]{
+      border-color: rgba(37,99,235,.25);
+      color: var(--text);
+      box-shadow: 0 8px 18px rgba(37,99,235,.10);
+    }
+    .tab svg{width:16px; height:16px; opacity:.9}
+
+    .right{
+      display:flex; align-items:center; gap:10px; justify-content:flex-end; min-width: 220px;
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:999px;
+      padding:8px 10px;
+      font-size:12px; color: var(--muted);
       white-space:nowrap;
     }
     .dot{
       width:10px; height:10px; border-radius:50%;
-      background:#9ca3af;
-      box-shadow: 0 0 0 3px rgba(156,163,175,.18);
+      background:#cbd5e1;
+      box-shadow: 0 0 0 4px rgba(203,213,225,.35);
     }
-    .dot.ok{background:var(--ok); box-shadow: 0 0 0 3px rgba(22,163,74,.18);}
-    .dot.bad{background:var(--bad); box-shadow: 0 0 0 3px rgba(220,38,38,.18);}
+    .dot.ok{
+      background: var(--accent2);
+      box-shadow: 0 0 0 4px rgba(16,185,129,.18);
+    }
 
-    .hero{
-      display:grid;
-      grid-template-columns: 1.2fr .8fr;
-      gap:16px;
-      margin: 8px 0 16px;
+    .btn{
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius: 12px;
+      padding:10px 12px;
+      cursor:pointer;
+      font-size:13px;
+      display:inline-flex; align-items:center; gap:8px;
+      user-select:none;
     }
-    @media (max-width: 900px){
-      .hero{grid-template-columns: 1fr}
+    .btn.primary{
+      background: var(--accent);
+      border-color: rgba(37,99,235,.35);
+      color:#fff;
+      box-shadow: 0 10px 22px rgba(37,99,235,.18);
+    }
+    .btn.danger{
+      background: rgba(239,68,68,.08);
+      border-color: rgba(239,68,68,.25);
+      color: #b91c1c;
+    }
+    .btn:disabled{opacity:.6; cursor:not-allowed}
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap:14px;
+      margin-top:16px;
+    }
+    @media(max-width: 940px){
+      .grid{grid-template-columns:1fr}
+      .brand, .right{min-width: auto}
     }
 
     .card{
-      background:var(--card);
+      background: var(--card);
       border:1px solid var(--line);
-      border-radius:var(--radius);
+      border-radius: var(--radius);
       box-shadow: var(--shadow);
-      padding:16px;
+      overflow:hidden;
     }
-    .card h1{margin:0 0 6px; font-size:26px; line-height:1.15}
-    .card p{margin:0; color:var(--muted); line-height:1.5}
-
-    .illus{
-      height:100%;
-      display:flex; align-items:center; justify-content:center;
-      padding:6px;
-      border-radius:var(--radius);
-      background: linear-gradient(180deg, rgba(37,99,235,.08), rgba(37,99,235,.02));
-      border:1px dashed rgba(37,99,235,.25);
-    }
-
-    .tabs{
-      display:flex; gap:10px; flex-wrap:wrap;
-      margin: 10px 0 14px;
-    }
-    .tab{
-      border:1px solid var(--line);
-      background:var(--card);
-      color:var(--text);
-      padding:10px 12px;
-      border-radius:999px;
-      font-weight:700;
-      cursor:pointer;
-      display:flex; align-items:center; gap:8px;
-      box-shadow: 0 6px 14px rgba(17,24,39,.05);
-      user-select:none;
-    }
-    .tab.active{
-      border-color: rgba(37,99,235,.35);
-      box-shadow: 0 10px 24px rgba(37,99,235,.15);
-    }
-    .tab .ico{opacity:.8}
-
-    .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px}
-    @media (max-width: 900px){ .grid2{grid-template-columns:1fr} }
-
-    .section-title{
+    .card-h{
+      padding:14px 14px 10px;
+      border-bottom:1px solid var(--line);
       display:flex; align-items:flex-start; justify-content:space-between;
-      gap:10px; margin-bottom:10px;
+      gap:10px;
     }
-    .section-title h2{margin:0; font-size:18px}
-    .section-title .hint{color:var(--muted); font-weight:600; font-size:13px}
+    .card-h h2{margin:0; font-size:15px;}
+    .card-h p{margin:4px 0 0; color: var(--muted); font-size:12px; line-height:1.35}
+    .card-b{padding:14px}
+
+    .notice{
+      background: rgba(37,99,235,.06);
+      border:1px solid rgba(37,99,235,.18);
+      color: #1e3a8a;
+      padding:10px 12px;
+      border-radius: 14px;
+      font-size:13px;
+      line-height:1.35;
+      display:flex; gap:10px; align-items:flex-start;
+    }
+    .notice svg{width:18px; height:18px; margin-top:2px}
 
     .form{
       display:grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap:10px;
-      margin-top:10px;
+      align-items:end;
     }
-    @media (max-width: 900px){ .form{grid-template-columns:1fr} }
-
-    label{
-      display:block;
-      font-size:12px;
-      font-weight:800;
-      letter-spacing:.02em;
-      color:#374151;
-      margin-bottom:6px;
+    @media(max-width: 740px){
+      .form{grid-template-columns: 1fr}
     }
-    input[type="text"], input[type="number"]{
+    label{display:block; font-size:12px; color: var(--muted); margin:0 0 6px;}
+    input{
       width:100%;
       padding:11px 12px;
-      border-radius:12px;
+      border-radius: 12px;
       border:1px solid var(--line);
       background:#fff;
       outline:none;
       font-size:14px;
     }
     input:focus{
-      border-color: rgba(37,99,235,.5);
-      box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+      border-color: rgba(37,99,235,.35);
+      box-shadow: 0 0 0 4px rgba(37,99,235,.10);
     }
 
     .row{
-      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      display:flex; gap:10px; align-items:center; flex-wrap: wrap;
       margin-top:10px;
     }
-
-    .btn{
-      border:0;
-      background: linear-gradient(135deg, var(--brand), var(--brand2));
-      color:white;
-      padding:11px 14px;
-      border-radius:12px;
-      font-weight:800;
-      cursor:pointer;
-      box-shadow: 0 10px 20px rgba(37,99,235,.20);
-    }
-    .btn:disabled{opacity:.6; cursor:not-allowed}
-    .btn.secondary{
-      background:#fff;
-      color:var(--text);
-      border:1px solid var(--line);
-      box-shadow:none;
-    }
-
-    .toggle{
-      display:flex; align-items:center; gap:10px;
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid var(--line);
-      background:#fff;
-      font-weight:700;
-      color:#374151;
-    }
-    .toggle input{width:18px; height:18px}
-
-    details{
-      margin-top:10px;
-      border:1px solid var(--line);
-      background:#fff;
-      border-radius:12px;
-      padding:10px 12px;
-    }
-    details summary{
-      cursor:pointer;
-      font-weight:800;
-      color:#374151;
-      list-style:none;
-    }
-    details summary::-webkit-details-marker{display:none}
-    .muted{color:var(--muted)}
-    .small{font-size:12px}
 
     .kpis{
       display:grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap:12px;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
       margin-top:12px;
     }
-    @media (max-width: 900px){ .kpis{grid-template-columns:1fr 1fr} }
     .kpi{
       border:1px solid var(--line);
-      border-radius:14px;
+      border-radius: 16px;
       padding:12px;
-      background:#fff;
+      background: linear-gradient(180deg, #fff, #fbfcff);
     }
-    .kpi .t{color:var(--muted); font-weight:800; font-size:12px; letter-spacing:.02em}
-    .kpi .v{font-size:20px; font-weight:900; margin-top:6px}
-    .kpi .s{color:var(--muted); font-weight:700; font-size:12px; margin-top:2px}
+    .kpi .t{font-size:12px; color: var(--muted); margin:0 0 6px; display:flex; gap:8px; align-items:center;}
+    .kpi .v{font-size:20px; font-weight:700; margin:0}
+    .kpi .s{font-size:12px; color: var(--muted); margin:6px 0 0}
 
-    .alert{
-      margin-top:10px;
-      border-radius:14px;
+    .chartWrap{
+      margin-top:12px;
       border:1px solid var(--line);
+      border-radius: 16px;
+      overflow:hidden;
       background:#fff;
-      padding:12px;
-      color:#374151;
-      display:flex; gap:10px;
     }
-    .alert .badge{
-      flex:0 0 auto;
-      width:34px; height:34px; border-radius:12px;
-      display:grid; place-items:center;
-      background: rgba(37,99,235,.10);
-      border:1px solid rgba(37,99,235,.18);
+    .chartTop{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      padding:10px 12px;
+      border-bottom:1px solid var(--line);
+      color: var(--muted);
+      font-size:12px;
     }
-
-    .error{
-      border-color: rgba(220,38,38,.35);
-      background: rgba(220,38,38,.04);
-      color:#7f1d1d;
-    }
+    canvas{width:100%; height:220px; display:block}
 
     table{
       width:100%;
-      border-collapse:collapse;
+      border-collapse: collapse;
       margin-top:12px;
       overflow:hidden;
       border:1px solid var(--line);
-      border-radius:14px;
+      border-radius: 16px;
       background:#fff;
     }
+    thead{background: rgba(15,23,42,.03)}
     th, td{
-      text-align:left;
-      padding:12px 12px;
+      padding:10px 12px;
       border-bottom:1px solid var(--line);
-      font-size:14px;
-      vertical-align:top;
+      text-align:left;
+      font-size:13px;
     }
-    th{
-      background: rgba(17,24,39,.02);
-      font-size:12px;
-      letter-spacing:.04em;
-      text-transform:uppercase;
-      color:#374151;
-      font-weight:900;
+    th{font-size:12px; color: var(--muted); text-transform:uppercase; letter-spacing:.04em}
+    tr:hover td{background: rgba(37,99,235,.04)}
+    .muted{color:var(--muted)}
+    .error{
+      color: #991b1b;
+      background: rgba(239,68,68,.08);
+      border:1px solid rgba(239,68,68,.22);
+      padding:10px 12px;
+      border-radius: 14px;
+      white-space: pre-wrap;
+      font-size:13px;
     }
-    tr:hover td{background: rgba(37,99,235,.03)}
-    .nowrap{white-space:nowrap}
 
-    .page{display:none}
-    .page.active{display:block}
+    /* Auth */
+    .authWrap{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px;
+      margin-top:16px;
+    }
+    @media(max-width: 900px){ .authWrap{grid-template-columns:1fr} }
+    .authTitle{margin:0 0 4px; font-size:18px;}
+    .authText{margin:0; color:var(--muted); font-size:13px; line-height:1.45}
+    .switcher{
+      display:flex; gap:8px; margin-top:12px;
+    }
+    .switcher .btn{border-radius: 999px}
+    .hidden{display:none !important}
 
-    .foot{
-      margin-top:18px;
-      color:var(--muted);
+    .footerNote{
+      margin-top:10px;
+      color: var(--muted);
       font-size:12px;
-      text-align:center;
+      line-height:1.4;
     }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
+  <div class="container">
+
     <div class="topbar">
       <div class="brand">
-        <div class="logo">S</div>
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M7 12c0-3 2-5 5-5h5v5c0 3-2 5-5 5H7v-5Z" stroke="rgba(37,99,235,.9)" stroke-width="1.8" />
+            <path d="M7 12c0 3 2 5 5 5h5v-5c0-3-2-5-5-5H7v5Z" stroke="rgba(16,185,129,.9)" stroke-width="1.8" opacity=".9" />
+          </svg>
+        </div>
         <div>
-          <div>SellCase</div>
-          <small>Аналітика ринку • проста і зрозуміла</small>
+          <h1>SellCase • Аналітика ринку</h1>
+          <p>Працююче MVP: графік, KPI та історія ринку (OLX).</p>
         </div>
       </div>
 
-      <div class="status-pill" title="Стан підключення до API">
-        <span id="apiDot" class="dot"></span>
-        <span id="apiStatusText">Перевіряємо сервер…</span>
+      <div class="nav" role="tablist" aria-label="Навігація">
+        <button class="tab" id="tab-market" role="tab" aria-selected="true" data-route="#market">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 19V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13" stroke="currentColor" stroke-width="1.6"/><path d="M8 19v-6m4 6V9m4 10v-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          Ринок
+        </button>
+        <button class="tab" id="tab-queries" role="tab" aria-selected="false" data-route="#queries">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M10 18a8 8 0 1 1 5.3-14" stroke="currentColor" stroke-width="1.6"/><path d="M21 21l-5.2-5.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          Запити
+        </button>
+        <button class="tab" id="tab-account" role="tab" aria-selected="false" data-route="#account">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" stroke-width="1.6"/><path d="M20 21a8 8 0 1 0-16 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          Акаунт
+        </button>
       </div>
-    </div>
 
-    <div class="hero">
-      <div class="card">
-        <h1>Аналітика ринку, яку можна зрозуміти за 1 хвилину</h1>
-        <p>
-          Тут ти бачиш історію “зрізів” ринку: скільки оголошень, яка медіана ціни, та діапазон P25–P75.
-          Далі додамо “розумні” висновки (mini-LLM) — але вже зараз MVP дає реальну користь.
-        </p>
-      </div>
-
-      <div class="card illus" aria-hidden="true">
-        <!-- простая иллюстрация SVG -->
-        <svg width="100%" height="160" viewBox="0 0 520 220" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="14" y="22" width="492" height="176" rx="18" fill="white" stroke="#E5E7EB"/>
-          <rect x="42" y="54" width="196" height="18" rx="9" fill="#EEF2FF"/>
-          <rect x="42" y="84" width="120" height="12" rx="6" fill="#E5E7EB"/>
-          <rect x="42" y="108" width="160" height="12" rx="6" fill="#E5E7EB"/>
-          <rect x="42" y="132" width="140" height="12" rx="6" fill="#E5E7EB"/>
-          <path d="M290 150C320 116 338 140 364 112C388 88 404 104 430 84C456 64 476 72 492 54" stroke="#2563EB" stroke-width="6" stroke-linecap="round"/>
-          <circle cx="290" cy="150" r="7" fill="#2563EB"/>
-          <circle cx="364" cy="112" r="7" fill="#2563EB"/>
-          <circle cx="430" cy="84" r="7" fill="#2563EB"/>
-          <circle cx="492" cy="54" r="7" fill="#2563EB"/>
-          <text x="42" y="172" fill="#6B7280" font-size="12" font-family="system-ui, -apple-system">Історія • KPI • Таблиці</text>
-        </svg>
+      <div class="right">
+        <div class="pill" title="Статус API">
+          <span class="dot" id="apiDot"></span>
+          <span id="apiText">Перевірка сервера…</span>
+        </div>
+        <button class="btn danger hidden" id="btnLogout" title="Вийти">
+          <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M10 7V6a2 2 0 0 1 2-2h7v16h-7a2 2 0 0 1-2-2v-1" stroke="currentColor" stroke-width="1.6"/><path d="M4 12h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M7 9l-3 3 3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Вийти
+        </button>
       </div>
     </div>
 
-    <div class="tabs">
-      <button class="tab active" data-tab="dashboard"><span class="ico">🏠</span>Огляд</button>
-      <button class="tab" data-tab="market"><span class="ico">📈</span>Ринок (OLX)</button>
-      <button class="tab" data-tab="queries"><span class="ico">🔎</span>Попит (запити)</button>
-      <button class="tab" data-tab="insights"><span class="ico">✨</span>Висновки</button>
-    </div>
-
-    <!-- PAGE: DASHBOARD -->
-    <section id="page-dashboard" class="page active">
+    <!-- AUTH SCREEN -->
+    <section id="screenAuth" class="authWrap hidden">
       <div class="card">
-        <div class="section-title">
-          <h2>Огляд</h2>
-          <div class="hint">Швидкі метрики та статус системи</div>
-        </div>
-
-        <div class="kpis">
-          <div class="kpi">
-            <div class="t">Стан сервера</div>
-            <div id="kpiServer" class="v">—</div>
-            <div class="s">API доступність</div>
-          </div>
-          <div class="kpi">
-            <div class="t">Останнє завантаження</div>
-            <div id="kpiLastLoad" class="v">—</div>
-            <div class="s">ринкові дані</div>
-          </div>
-          <div class="kpi">
-            <div class="t">Оголошень (останній зріз)</div>
-            <div id="kpiItems" class="v">—</div>
-            <div class="s">items_count</div>
-          </div>
-          <div class="kpi">
-            <div class="t">Медіана (останній зріз)</div>
-            <div id="kpiMedian" class="v">—</div>
-            <div class="s">ціна</div>
-          </div>
-        </div>
-
-        <div id="dashMsg" class="alert">
-          <div class="badge">💡</div>
+        <div class="card-h">
           <div>
-            <div style="font-weight:900; margin-bottom:2px;">Як користуватись</div>
-            <div class="muted">
-              Відкрий вкладку <b>“Ринок (OLX)”</b> → натисни <b>“Завантажити”</b>.
-              Якщо твій акаунт захищений — додай <b>токен доступу</b> у “Додатково”.
-            </div>
+            <h2 class="authTitle">Почнімо з акаунта</h2>
+            <p class="authText">
+              Щоб показувати реальні дані ринку та зберігати твої проєкти, потрібен вхід.
+              Це MVP — пізніше додамо “розумні” інсайти (mini-LLM).
+            </p>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- PAGE: MARKET -->
-    <section id="page-market" class="page">
-      <div class="card">
-        <div class="section-title">
-          <h2>Ринок (OLX) — історія</h2>
-          <div class="hint">Дані по “зрізах”: кількість, медіана, P25/P75</div>
-        </div>
-
-        <div class="form">
-          <div>
-            <label for="projectId">Проєкт</label>
-            <input id="projectId" type="number" value="19" min="1" placeholder="Напр. 19" />
-            <div class="small muted" style="margin-top:6px">Якщо у тебе один проєкт — просто залиш як є.</div>
-          </div>
-
-          <div>
-            <label for="mhLimit">Скільки зрізів показати</label>
-            <input id="mhLimit" type="number" value="30" min="1" max="200" />
-          </div>
-
-          <div>
-            <label for="mhOffset">Зсув (сторінка)</label>
-            <input id="mhOffset" type="number" value="0" min="0" />
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="toggle" title="Фільтрує “шумні” знімки">
-            <input id="mhOnlyValid" type="checkbox" checked />
+        <div class="card-b">
+          <div class="notice">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 22a10 10 0 1 0-10-10 10 10 0 0 0 10 10Z" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12 17h.01" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
             <div>
-              <div style="font-weight:900">Показувати лише валідні точки</div>
-              <div class="small muted">менше шуму — чистіша картинка</div>
+              <div style="font-weight:700; margin-bottom:2px;">Токени не вводяться вручну</div>
+              <div>Після входу ми автоматично отримуємо ключ доступу і використовуємо його у фоні.</div>
             </div>
           </div>
 
-          <button id="mhLoadBtn" class="btn">Завантажити</button>
-          <button id="mhPrevBtn" class="btn secondary">Назад</button>
-          <button id="mhNextBtn" class="btn secondary">Вперед</button>
-        </div>
+          <div class="switcher">
+            <button class="btn primary" id="btnShowLogin">Увійти</button>
+            <button class="btn" id="btnShowRegister">Створити акаунт</button>
+          </div>
 
-        <details>
-          <summary>Додатково (токен доступу)</summary>
-          <div style="margin-top:10px">
-            <label for="authToken">Токен доступу (опціонально)</label>
-            <input id="authToken" type="text" placeholder="Встав JWT (можна без слова Bearer)" />
-            <div class="small muted" style="margin-top:8px">
-              Якщо бачиш помилку 401/403 — потрібен токен. Можна вставити <b>з Bearer</b> або <b>без</b>.
+          <div id="authError" class="error hidden" style="margin-top:12px;"></div>
+
+          <!-- Login -->
+          <div id="boxLogin" style="margin-top:12px;">
+            <label>Електронна пошта</label>
+            <input id="loginEmail" type="email" placeholder="name@email.com" autocomplete="username" />
+            <div style="height:10px"></div>
+            <label>Пароль</label>
+            <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+            <div class="row">
+              <button class="btn primary" id="btnLogin">Увійти</button>
+              <span class="muted" id="authHint">—</span>
             </div>
+            <div class="footerNote">Якщо ще немає акаунта — натисни “Створити акаунт”.</div>
           </div>
-        </details>
 
-        <div id="mhStatus" class="alert" style="margin-top:12px">
-          <div class="badge">📌</div>
-          <div>
-            <div style="font-weight:900; margin-bottom:2px;">Статус</div>
-            <div class="muted">Готово. Натисни “Завантажити”.</div>
+          <!-- Register -->
+          <div id="boxRegister" class="hidden" style="margin-top:12px;">
+            <label>Ім’я та прізвище</label>
+            <input id="regName" type="text" placeholder="Іван Петренко" autocomplete="name" />
+            <div style="height:10px"></div>
+            <label>Електронна пошта</label>
+            <input id="regEmail" type="email" placeholder="name@email.com" autocomplete="email" />
+            <div style="height:10px"></div>
+            <label>Пароль</label>
+            <input id="regPassword" type="password" placeholder="Мінімум 8 символів" autocomplete="new-password" />
+            <div class="row">
+              <button class="btn primary" id="btnRegister">Створити акаунт</button>
+              <span class="muted">Після реєстрації одразу виконаємо вхід автоматично.</span>
+            </div>
+            <div class="footerNote">Пароль зберігається безпечно на сервері (хеш).</div>
           </div>
         </div>
-
-        <div class="kpis">
-          <div class="kpi">
-            <div class="t">Остання медіана</div>
-            <div id="kpiLastMedian" class="v">—</div>
-            <div class="s">ціна</div>
-          </div>
-          <div class="kpi">
-            <div class="t">Зміна медіани</div>
-            <div id="kpiDeltaMedian" class="v">—</div>
-            <div class="s">проти попереднього</div>
-          </div>
-          <div class="kpi">
-            <div class="t">Діапазон (P75–P25)</div>
-            <div id="kpiSpread" class="v">—</div>
-            <div class="s">ціни</div>
-          </div>
-          <div class="kpi">
-            <div class="t">Оголошень</div>
-            <div id="kpiItemsCount" class="v">—</div>
-            <div class="s">items_count</div>
-          </div>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th class="nowrap">Час</th>
-              <th class="nowrap">Оголошень</th>
-              <th class="nowrap">Медіана</th>
-              <th class="nowrap">P25</th>
-              <th class="nowrap">P75</th>
-            </tr>
-          </thead>
-          <tbody id="mhTbody"></tbody>
-        </table>
       </div>
-    </section>
 
-    <!-- PAGE: QUERIES -->
-    <section id="page-queries" class="page">
       <div class="card">
-        <div class="section-title">
-          <h2>Попит (пошукові запити)</h2>
-          <div class="hint">Що люди шукають найчастіше</div>
-        </div>
-
-        <div class="row">
-          <button id="qReloadBtn" class="btn">Оновити список</button>
-          <div id="status" class="muted" style="font-weight:700">Завантаження…</div>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Запит</th>
-              <th class="nowrap">К-сть</th>
-              <th>Категорія</th>
-              <th class="nowrap">Впевненість</th>
-              <th>Джерело</th>
-            </tr>
-          </thead>
-          <tbody id="tbody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- PAGE: INSIGHTS -->
-    <section id="page-insights" class="page">
-      <div class="card">
-        <div class="section-title">
-          <h2>Висновки</h2>
-          <div class="hint">Тут буде “розумний” помічник (mini-LLM)</div>
-        </div>
-
-        <div class="alert">
-          <div class="badge">✨</div>
+        <div class="card-h">
           <div>
-            <div style="font-weight:900; margin-bottom:2px;">Що буде далі</div>
-            <div class="muted">
-              Після інвестиції додамо міні-нейронку для:
-              <ul style="margin:8px 0 0; padding-left:18px; color:var(--muted); font-weight:600">
-                <li>пояснення ринку “людською мовою”</li>
-                <li>підказок по ціноутворенню та ризикам</li>
-                <li>рекомендацій “що робити далі”</li>
-              </ul>
+            <h2>Що дає SellCase (MVP)</h2>
+            <p>Щоб було “як продукт”, а не “панель для розробника”.</p>
+          </div>
+        </div>
+        <div class="card-b">
+          <div style="display:grid; gap:10px;">
+            <div class="notice" style="background: rgba(16,185,129,.06); border-color: rgba(16,185,129,.18); color:#064e3b;">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M20 7 10 17l-5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div><b>Динаміка ринку</b><br><span style="font-weight:400">медіана ціни, P25/P75, кількість оголошень у часі.</span></div>
+            </div>
+            <div class="notice">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 19V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13" stroke="currentColor" stroke-width="1.6"/><path d="M8 16h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              <div><b>KPI одним поглядом</b><br><span style="font-weight:400">останнє значення, зміна, розкид і обсяг.</span></div>
+            </div>
+            <div class="notice" style="background: rgba(37,99,235,.05);">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M7 8l5-5 5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div><b>Наступний крок</b><br><span style="font-weight:400">після інвестицій: інсайти з mini-LLM (пояснення “чому так” і “що робити”).</span></div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <div class="foot">© SellCase • MVP</div>
-  </div>
+    <!-- APP SCREENS -->
+    <section id="screenApp" class="hidden">
 
-  <!-- ВАЖЛИВО: ніякого inline JS -->
-  <script src="app.js"></script>
-</body>
-  </html>
+      <div class="grid">
+        <!-- Left: Market -->
+        <div class="card" id="pageMarket">
+          <div class="card-h">
+            <div>
+              <h2>Ринок (OLX) • Історія</h2>
+              <p>Переглядай динаміку: медіана, P25/P75 і кількість оголошень. Це базовий інструмент для оцінки ніші.</p>
+            </div>
+          </div>
+
+          <div class="card-b">
+            <div class="form">
+              <div>
+                <label>Мій проєкт (ID)</label>
+                <input id="projectId" type="number" min="1" placeholder="Напр. 19" />
+              </div>
+              <div>
+                <label>Скільки точок показати</label>
+                <input id="limit" type="number" min="5" max="200" placeholder="30" />
+              </div>
+              <div>
+                <label>Зсув (сторінка)</label>
+                <input id="offset" type="number" min="0" placeholder="0" />
+              </div>
+            </div>
+
+            <div class="row">
+              <label style="display:flex; gap:10px; align-items:center; margin:0; color:var(--text);">
+                <input id="onlyValid" type="checkbox" style="width:18px; height:18px; margin:0;" />
+                Показувати тільки валідні точки
+              </label>
+
+              <button class="btn primary" id="btnLoadMarket">Завантажити</button>
+              <button class="btn" id="btnPrev">Назад</button>
+              <button class="btn" id="btnNext">Вперед</button>
+
+              <span class="muted" id="marketStatus">—</span>
+            </div>
+
+            <div id="marketError" class="error hidden" style="margin-top:10px;"></div>
+
+            <div class="kpis">
+              <div class="kpi">
+                <div class="t">Остання медіана</div>
+                <p class="v" id="kpiLastMedian">—</p>
+                <p class="s" id="kpiLastTime" class="muted">—</p>
+              </div>
+              <div class="kpi">
+                <div class="t">Зміна медіани</div>
+                <p class="v" id="kpiDeltaMedian">—</p>
+                <p class="s" id="kpiDeltaHint">—</p>
+              </div>
+              <div class="kpi">
+                <div class="t">Розкид (P75 − P25)</div>
+                <p class="v" id="kpiSpread">—</p>
+                <p class="s" id="kpiSpreadHint">—</p>
+              </div>
+              <div class="kpi">
+                <div class="t">К-сть оголошень</div>
+                <p class="v" id="kpiItems">—</p>
+                <p class="s" id="kpiItemsHint">—</p>
+              </div>
+            </div>
+
+            <div class="chartWrap">
+              <div class="chartTop">
+                <span>Графік: медіана / P25 / P75</span>
+                <span id="chartMeta">—</span>
+              </div>
+              <canvas id="chart" width="900" height="240"></canvas>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Час</th>
+                  <th>Оголошення</th>
+                  <th>Медіана</th>
+                  <th>P25</th>
+                  <th>P75</th>
+                </tr>
+              </thead>
+              <tbody id="marketTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Right: Help / insights -->
+        <div class="card" id="pageSide">
+          <div class="card-h">
+            <div>
+              <h2>Підказки</h2>
+              <p>Коротко і по суті — як читати цифри.</p>
+            </div>
+          </div>
+          <div class="card-b">
+            <div class="notice" style="margin-bottom:10px;">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 22a10 10 0 1 0-10-10 10 10 0 0 0 10 10Z" stroke="currentColor" stroke-width="1.6"/><path d="M12 16v-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12 8h.01" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+              <div>
+                <b>Що таке медіана?</b><br>
+                Медіана — “типова” ціна. Вона стійкіша за середню.
+              </div>
+            </div>
+
+            <div class="notice" style="margin-bottom:10px; background: rgba(16,185,129,.06); border-color: rgba(16,185,129,.18); color:#064e3b;">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 18V6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8 18v-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12 18v-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M16 18v-11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M20 18v-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              <div>
+                <b>P25 / P75</b><br>
+                P25 — “дешевий сегмент”, P75 — “дорогий сегмент”. Розкид показує конкуренцію і шум.
+              </div>
+            </div>
+
+            <div class="notice" style="background: rgba(37,99,235,.06); border-color: rgba(37,99,235,.18); color:#1e3a8a;">
+              
