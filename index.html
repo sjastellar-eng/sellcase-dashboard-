@@ -1,401 +1,542 @@
 <!doctype html>
-<html lang="uk" data-theme="light">
+<html lang="uk">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SellCase • Ринок (MVP)</title>
+  <title>SellCase — Аналітика ринку</title>
 
   <style>
     :root{
-      --bg0:#f6f7fb;
-      --bg1:#eef2ff;
-      --card: rgba(255,255,255,.85);
-      --card2: rgba(255,255,255,.95);
-      --stroke: rgba(15,23,42,.10);
-      --text:#0f172a;
-      --muted: rgba(15,23,42,.65);
-      --good: rgba(34,197,94,.95);
-      --warn: rgba(245,158,11,.95);
-      --bad:  rgba(239,68,68,.95);
-      --btn: rgba(37,99,235,.10);
-      --btn2: rgba(37,99,235,.16);
-      --shadow: 0 18px 50px rgba(2,6,23,.08);
-      --r: 18px;
-      --r2: 14px;
+      --bg:#f6f8fc;
+      --card:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --line:#e5e7eb;
+      --brand:#2563eb;
+      --brand2:#1d4ed8;
+      --ok:#16a34a;
+      --warn:#b45309;
+      --bad:#dc2626;
+      --shadow: 0 10px 30px rgba(17,24,39,.08);
+      --radius: 16px;
     }
 
-    [data-theme="dark"]{
-      --bg0:#070b12;
-      --bg1:#0b1220;
-      --card: rgba(255,255,255,.04);
-      --card2: rgba(255,255,255,.06);
-      --stroke: rgba(255,255,255,.10);
-      --text:#e6eaf2;
-      --muted: rgba(230,234,242,.7);
-      --btn: rgba(120,160,255,.16);
-      --btn2: rgba(120,160,255,.24);
-      --shadow: 0 20px 60px rgba(0,0,0,.35);
-    }
-
-    *{ box-sizing: border-box; }
+    *{box-sizing:border-box}
     body{
       margin:0;
-      padding:18px;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(900px 500px at 10% 0%, rgba(37,99,235,.12), transparent 60%),
-        radial-gradient(900px 500px at 90% 10%, rgba(34,197,94,.10), transparent 55%),
-        linear-gradient(180deg, var(--bg0), var(--bg1));
-      min-height: 100vh;
+      background: radial-gradient(1200px 600px at 50% -20%, rgba(37,99,235,.16), transparent 60%), var(--bg);
+      color:var(--text);
     }
 
-    .container{ max-width: 980px; margin: 0 auto; }
+    a{color:var(--brand); text-decoration:none}
+    a:hover{text-decoration:underline}
 
+    .wrap{max-width:1100px; margin:0 auto; padding:18px 16px 56px}
     .topbar{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:12px;
-      margin-bottom: 14px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; padding:10px 0 14px;
     }
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      font-weight:800; letter-spacing:.2px;
+    }
+    .logo{
+      width:34px; height:34px; border-radius:10px;
+      background: linear-gradient(135deg, var(--brand), #60a5fa);
+      display:grid; place-items:center; color:white;
+      box-shadow: 0 10px 18px rgba(37,99,235,.22);
+      flex:0 0 auto;
+    }
+    .brand small{display:block; font-weight:600; color:var(--muted); margin-top:2px; letter-spacing:0}
 
-    .title{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-    }
-    .title h1{
-      margin:0;
-      font-size: 26px;
-      letter-spacing: .2px;
-    }
-    .title p{
-      margin:0;
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .actions{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      flex-wrap:wrap;
-      justify-content:flex-end;
-    }
-
-    .chip{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:8px 10px;
-      border-radius: 999px;
-      background: var(--card);
-      border: 1px solid var(--stroke);
-      box-shadow: 0 6px 20px rgba(2,6,23,.06);
-      font-size: 13px;
-      color: var(--muted);
-      white-space: nowrap;
+    .status-pill{
+      display:flex; align-items:center; gap:8px;
+      background:var(--card); border:1px solid var(--line);
+      border-radius:999px; padding:8px 12px;
+      box-shadow: 0 6px 16px rgba(17,24,39,.06);
+      color:var(--muted);
+      font-weight:600;
+      white-space:nowrap;
     }
     .dot{
-      width:10px; height:10px; border-radius:999px;
-      background: rgba(148,163,184,.9);
-      box-shadow: 0 0 0 4px rgba(148,163,184,.15);
+      width:10px; height:10px; border-radius:50%;
+      background:#9ca3af;
+      box-shadow: 0 0 0 3px rgba(156,163,175,.18);
     }
-    .dot.ok{ background: var(--good); box-shadow: 0 0 0 4px rgba(34,197,94,.18); }
-    .dot.bad{ background: var(--bad); box-shadow: 0 0 0 4px rgba(239,68,68,.18); }
+    .dot.ok{background:var(--ok); box-shadow: 0 0 0 3px rgba(22,163,74,.18);}
+    .dot.bad{background:var(--bad); box-shadow: 0 0 0 3px rgba(220,38,38,.18);}
 
-    .btn{
-      appearance:none;
-      border: 1px solid var(--stroke);
-      background: var(--card2);
-      border-radius: 999px;
-      padding: 8px 10px;
-      cursor:pointer;
-      font-weight:600;
-      font-size: 13px;
-      color: var(--text);
-      box-shadow: 0 8px 24px rgba(2,6,23,.08);
-      transition: transform .06s ease, background .12s ease;
+    .hero{
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap:16px;
+      margin: 8px 0 16px;
     }
-    .btn:hover{ background: var(--card); }
-    .btn:active{ transform: translateY(1px); }
+    @media (max-width: 900px){
+      .hero{grid-template-columns: 1fr}
+    }
 
     .card{
-      background: var(--card);
-      border: 1px solid var(--stroke);
-      border-radius: var(--r);
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
       box-shadow: var(--shadow);
-      overflow:hidden;
-      margin-top: 12px;
+      padding:16px;
+    }
+    .card h1{margin:0 0 6px; font-size:26px; line-height:1.15}
+    .card p{margin:0; color:var(--muted); line-height:1.5}
+
+    .illus{
+      height:100%;
+      display:flex; align-items:center; justify-content:center;
+      padding:6px;
+      border-radius:var(--radius);
+      background: linear-gradient(180deg, rgba(37,99,235,.08), rgba(37,99,235,.02));
+      border:1px dashed rgba(37,99,235,.25);
     }
 
-    .cardHead{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding: 14px 16px;
-      background: linear-gradient(180deg, var(--card2), var(--card));
-      border-bottom: 1px solid var(--stroke);
+    .tabs{
+      display:flex; gap:10px; flex-wrap:wrap;
+      margin: 10px 0 14px;
     }
-    .cardHead h2{
-      margin:0;
-      font-size: 16px;
-      letter-spacing:.2px;
-    }
-    .cardHead .sub{
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .cardBody{ padding: 14px 16px; }
-
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
-    }
-    @media(min-width: 860px){
-      .grid{ grid-template-columns: 1.1fr .9fr; }
-    }
-
-    .formRow{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      align-items:flex-end;
-    }
-
-    .field{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      min-width: 140px;
-      flex: 1;
-    }
-    .field label{
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .input{
-      width:100%;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--stroke);
-      background: var(--card2);
-      color: var(--text);
-      outline:none;
-    }
-
-    .check{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--stroke);
-      background: var(--card2);
-      color: var(--text);
+    .tab{
+      border:1px solid var(--line);
+      background:var(--card);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:999px;
+      font-weight:700;
+      cursor:pointer;
+      display:flex; align-items:center; gap:8px;
+      box-shadow: 0 6px 14px rgba(17,24,39,.05);
       user-select:none;
     }
-    .check small{ color: var(--muted); }
-
-    .btnPrimary{
-      background: var(--btn2);
-      border-color: rgba(37,99,235,.25);
+    .tab.active{
+      border-color: rgba(37,99,235,.35);
+      box-shadow: 0 10px 24px rgba(37,99,235,.15);
     }
-    .btnPrimary:hover{ background: var(--btn); }
+    .tab .ico{opacity:.8}
 
-    .btnGhost{
-      background: transparent;
+    .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px}
+    @media (max-width: 900px){ .grid2{grid-template-columns:1fr} }
+
+    .section-title{
+      display:flex; align-items:flex-start; justify-content:space-between;
+      gap:10px; margin-bottom:10px;
+    }
+    .section-title h2{margin:0; font-size:18px}
+    .section-title .hint{color:var(--muted); font-weight:600; font-size:13px}
+
+    .form{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+    @media (max-width: 900px){ .form{grid-template-columns:1fr} }
+
+    label{
+      display:block;
+      font-size:12px;
+      font-weight:800;
+      letter-spacing:.02em;
+      color:#374151;
+      margin-bottom:6px;
+    }
+    input[type="text"], input[type="number"]{
+      width:100%;
+      padding:11px 12px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:#fff;
+      outline:none;
+      font-size:14px;
+    }
+    input:focus{
+      border-color: rgba(37,99,235,.5);
+      box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+    }
+
+    .row{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      margin-top:10px;
+    }
+
+    .btn{
+      border:0;
+      background: linear-gradient(135deg, var(--brand), var(--brand2));
+      color:white;
+      padding:11px 14px;
+      border-radius:12px;
+      font-weight:800;
+      cursor:pointer;
+      box-shadow: 0 10px 20px rgba(37,99,235,.20);
+    }
+    .btn:disabled{opacity:.6; cursor:not-allowed}
+    .btn.secondary{
+      background:#fff;
+      color:var(--text);
+      border:1px solid var(--line);
       box-shadow:none;
     }
 
-    .status{
-      margin-top:10px;
-      font-size: 13px;
-      color: var(--muted);
-      white-space: pre-wrap;
+    .toggle{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:#fff;
+      font-weight:700;
+      color:#374151;
     }
-    .status.error{ color: var(--bad); }
-    .status.ok{ color: rgba(15,23,42,.75); }
-    [data-theme="dark"] .status.ok{ color: rgba(230,234,242,.75); }
+    .toggle input{width:18px; height:18px}
 
-    .kpiGrid{
+    details{
+      margin-top:10px;
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:12px;
+      padding:10px 12px;
+    }
+    details summary{
+      cursor:pointer;
+      font-weight:800;
+      color:#374151;
+      list-style:none;
+    }
+    details summary::-webkit-details-marker{display:none}
+    .muted{color:var(--muted)}
+    .small{font-size:12px}
+
+    .kpis{
       display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      grid-template-columns: repeat(4, 1fr);
+      gap:12px;
+      margin-top:12px;
     }
+    @media (max-width: 900px){ .kpis{grid-template-columns:1fr 1fr} }
     .kpi{
-      background: var(--card2);
-      border: 1px solid var(--stroke);
-      border-radius: var(--r2);
-      padding: 12px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
     }
-    .kpi .k{ font-size: 12px; color: var(--muted); }
-    .kpi .v{ margin-top:6px; font-size: 20px; font-weight: 700; letter-spacing:.2px; }
-    .kpi .s{ margin-top:4px; font-size: 12px; color: var(--muted); }
+    .kpi .t{color:var(--muted); font-weight:800; font-size:12px; letter-spacing:.02em}
+    .kpi .v{font-size:20px; font-weight:900; margin-top:6px}
+    .kpi .s{color:var(--muted); font-weight:700; font-size:12px; margin-top:2px}
+
+    .alert{
+      margin-top:10px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:#fff;
+      padding:12px;
+      color:#374151;
+      display:flex; gap:10px;
+    }
+    .alert .badge{
+      flex:0 0 auto;
+      width:34px; height:34px; border-radius:12px;
+      display:grid; place-items:center;
+      background: rgba(37,99,235,.10);
+      border:1px solid rgba(37,99,235,.18);
+    }
+
+    .error{
+      border-color: rgba(220,38,38,.35);
+      background: rgba(220,38,38,.04);
+      color:#7f1d1d;
+    }
 
     table{
       width:100%;
-      border-collapse: collapse;
+      border-collapse:collapse;
+      margin-top:12px;
       overflow:hidden;
-      border-radius: var(--r2);
-      border: 1px solid var(--stroke);
-      background: var(--card2);
-    }
-    thead{
-      background: rgba(148,163,184,.14);
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:#fff;
     }
     th, td{
-      padding: 10px 12px;
       text-align:left;
-      border-bottom: 1px solid var(--stroke);
-      font-size: 13px;
+      padding:12px 12px;
+      border-bottom:1px solid var(--line);
+      font-size:14px;
+      vertical-align:top;
     }
     th{
-      font-size: 12px;
-      letter-spacing:.06em;
-      text-transform: uppercase;
-      color: rgba(15,23,42,.7);
+      background: rgba(17,24,39,.02);
+      font-size:12px;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      color:#374151;
+      font-weight:900;
     }
-    [data-theme="dark"] th{ color: rgba(230,234,242,.7); }
-    tr:hover td{ background: rgba(37,99,235,.06); }
+    tr:hover td{background: rgba(37,99,235,.03)}
+    .nowrap{white-space:nowrap}
 
-    .hint{
-      margin-top: 10px;
-      padding: 10px 12px;
-      border-radius: var(--r2);
-      border: 1px dashed var(--stroke);
-      background: rgba(37,99,235,.06);
-      color: var(--muted);
-      font-size: 12px;
+    .page{display:none}
+    .page.active{display:block}
+
+    .foot{
+      margin-top:18px;
+      color:var(--muted);
+      font-size:12px;
+      text-align:center;
     }
-
-    .footerSpace{ height: 12px; }
   </style>
 </head>
 
 <body>
-  <div class="container">
-
+  <div class="wrap">
     <div class="topbar">
-      <div class="title">
-        <h1>SellCase • Аналітика ринку</h1>
-        <p>Працюючий MVP: історія ринку (OLX), KPI та таблиця. Далі додамо “розумні” інсайти (mini-LLM) після інвестицій.</p>
-      </div>
-
-      <div class="actions">
-        <div class="chip" id="healthChip">
-          <span class="dot" id="healthDot"></span>
-          <span id="healthText">Перевіряємо сервер…</span>
-        </div>
-        <button class="btn" id="themeBtn" type="button">🌞 Світла</button>
-      </div>
-    </div>
-
-    <!-- Market -->
-    <div class="card">
-      <div class="cardHead">
+      <div class="brand">
+        <div class="logo">S</div>
         <div>
-          <h2>Ринок (OLX) • Історія</h2>
-          <div class="sub">Завантаження історичних “знімків” видачі: кількість, медіана, P25/P75.</div>
+          <div>SellCase</div>
+          <small>Аналітика ринку • проста і зрозуміла</small>
         </div>
       </div>
 
-      <div class="cardBody">
-        <div class="grid">
-          <!-- left -->
-          <div>
-            <div class="formRow">
-              <div class="field" style="min-width:120px; max-width:200px;">
-                <label>Проєкт</label>
-                <input class="input" id="projectId" type="number" value="19" />
-              </div>
-
-              <div class="field" style="min-width:120px; max-width:200px;">
-                <label>Ліміт</label>
-                <input class="input" id="mhLimit" type="number" value="30" />
-              </div>
-
-              <div class="field" style="min-width:120px; max-width:200px;">
-                <label>Зсув (offset)</label>
-                <input class="input" id="mhOffset" type="number" value="0" />
-              </div>
-
-              <label class="check" style="flex: 1; min-width: 240px;">
-                <input id="mhOnlyValid" type="checkbox" checked />
-                <div>
-                  <div style="font-weight:600;">Тільки валідні точки</div>
-                  <small>Фільтрує “шумні” знімки</small>
-                </div>
-              </label>
-
-              <div class="field" style="min-width:220px; flex: 2;">
-                <label>Токен (JWT) — опціонально</label>
-                <input class="input" id="authToken" placeholder="встав JWT (можна без 'Bearer')" />
-              </div>
-
-              <button class="btn btnPrimary" id="mhLoadBtn" type="button">Завантажити</button>
-              <button class="btn btnGhost" id="mhPrevBtn" type="button">Назад</button>
-              <button class="btn btnGhost" id="mhNextBtn" type="button">Вперед</button>
-            </div>
-
-            <div class="status" id="mhStatus">Готово. Натисни “Завантажити”.</div>
-
-            <div class="hint">
-              Підказка: зараз поле “Проєкт” — тимчасово. У повній версії після реєстрації користувач бачитиме список “Мої проєкти” і нічого вручну вводити не доведеться.
-            </div>
-          </div>
-
-          <!-- right -->
-          <div>
-            <div class="kpiGrid">
-              <div class="kpi">
-                <div class="k">Остання медіана</div>
-                <div class="v" id="kpiLastMedian">—</div>
-                <div class="s" id="kpiLastMedianSub">—</div>
-              </div>
-              <div class="kpi">
-                <div class="k">Зміна медіани</div>
-                <div class="v" id="kpiDeltaMedian">—</div>
-                <div class="s" id="kpiDeltaMedianSub">—</div>
-              </div>
-              <div class="kpi">
-                <div class="k">Розкид (P75 − P25)</div>
-                <div class="v" id="kpiSpread">—</div>
-                <div class="s" id="kpiSpreadSub">—</div>
-              </div>
-              <div class="kpi">
-                <div class="k">К-сть оголошень (items)</div>
-                <div class="v" id="kpiItems">—</div>
-                <div class="s" id="kpiItemsSub">—</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div style="margin-top:12px;">
-          <table>
-            <thead>
-              <tr>
-                <th>Час</th>
-                <th>Оголошення</th>
-                <th>Медіана</th>
-                <th>P25</th>
-                <th>P75</th>
-              </tr>
-            </thead>
-            <tbody id="mhTbody"></tbody>
-          </table>
-        </div>
-
-        <div class="footerSpace"></div>
+      <div class="status-pill" title="Стан підключення до API">
+        <span id="apiDot" class="dot"></span>
+        <span id="apiStatusText">Перевіряємо сервер…</span>
       </div>
     </div>
 
+    <div class="hero">
+      <div class="card">
+        <h1>Аналітика ринку, яку можна зрозуміти за 1 хвилину</h1>
+        <p>
+          Тут ти бачиш історію “зрізів” ринку: скільки оголошень, яка медіана ціни, та діапазон P25–P75.
+          Далі додамо “розумні” висновки (mini-LLM) — але вже зараз MVP дає реальну користь.
+        </p>
+      </div>
+
+      <div class="card illus" aria-hidden="true">
+        <!-- простая иллюстрация SVG -->
+        <svg width="100%" height="160" viewBox="0 0 520 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="14" y="22" width="492" height="176" rx="18" fill="white" stroke="#E5E7EB"/>
+          <rect x="42" y="54" width="196" height="18" rx="9" fill="#EEF2FF"/>
+          <rect x="42" y="84" width="120" height="12" rx="6" fill="#E5E7EB"/>
+          <rect x="42" y="108" width="160" height="12" rx="6" fill="#E5E7EB"/>
+          <rect x="42" y="132" width="140" height="12" rx="6" fill="#E5E7EB"/>
+          <path d="M290 150C320 116 338 140 364 112C388 88 404 104 430 84C456 64 476 72 492 54" stroke="#2563EB" stroke-width="6" stroke-linecap="round"/>
+          <circle cx="290" cy="150" r="7" fill="#2563EB"/>
+          <circle cx="364" cy="112" r="7" fill="#2563EB"/>
+          <circle cx="430" cy="84" r="7" fill="#2563EB"/>
+          <circle cx="492" cy="54" r="7" fill="#2563EB"/>
+          <text x="42" y="172" fill="#6B7280" font-size="12" font-family="system-ui, -apple-system">Історія • KPI • Таблиці</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="dashboard"><span class="ico">🏠</span>Огляд</button>
+      <button class="tab" data-tab="market"><span class="ico">📈</span>Ринок (OLX)</button>
+      <button class="tab" data-tab="queries"><span class="ico">🔎</span>Попит (запити)</button>
+      <button class="tab" data-tab="insights"><span class="ico">✨</span>Висновки</button>
+    </div>
+
+    <!-- PAGE: DASHBOARD -->
+    <section id="page-dashboard" class="page active">
+      <div class="card">
+        <div class="section-title">
+          <h2>Огляд</h2>
+          <div class="hint">Швидкі метрики та статус системи</div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi">
+            <div class="t">Стан сервера</div>
+            <div id="kpiServer" class="v">—</div>
+            <div class="s">API доступність</div>
+          </div>
+          <div class="kpi">
+            <div class="t">Останнє завантаження</div>
+            <div id="kpiLastLoad" class="v">—</div>
+            <div class="s">ринкові дані</div>
+          </div>
+          <div class="kpi">
+            <div class="t">Оголошень (останній зріз)</div>
+            <div id="kpiItems" class="v">—</div>
+            <div class="s">items_count</div>
+          </div>
+          <div class="kpi">
+            <div class="t">Медіана (останній зріз)</div>
+            <div id="kpiMedian" class="v">—</div>
+            <div class="s">ціна</div>
+          </div>
+        </div>
+
+        <div id="dashMsg" class="alert">
+          <div class="badge">💡</div>
+          <div>
+            <div style="font-weight:900; margin-bottom:2px;">Як користуватись</div>
+            <div class="muted">
+              Відкрий вкладку <b>“Ринок (OLX)”</b> → натисни <b>“Завантажити”</b>.
+              Якщо твій акаунт захищений — додай <b>токен доступу</b> у “Додатково”.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: MARKET -->
+    <section id="page-market" class="page">
+      <div class="card">
+        <div class="section-title">
+          <h2>Ринок (OLX) — історія</h2>
+          <div class="hint">Дані по “зрізах”: кількість, медіана, P25/P75</div>
+        </div>
+
+        <div class="form">
+          <div>
+            <label for="projectId">Проєкт</label>
+            <input id="projectId" type="number" value="19" min="1" placeholder="Напр. 19" />
+            <div class="small muted" style="margin-top:6px">Якщо у тебе один проєкт — просто залиш як є.</div>
+          </div>
+
+          <div>
+            <label for="mhLimit">Скільки зрізів показати</label>
+            <input id="mhLimit" type="number" value="30" min="1" max="200" />
+          </div>
+
+          <div>
+            <label for="mhOffset">Зсув (сторінка)</label>
+            <input id="mhOffset" type="number" value="0" min="0" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="toggle" title="Фільтрує “шумні” знімки">
+            <input id="mhOnlyValid" type="checkbox" checked />
+            <div>
+              <div style="font-weight:900">Показувати лише валідні точки</div>
+              <div class="small muted">менше шуму — чистіша картинка</div>
+            </div>
+          </div>
+
+          <button id="mhLoadBtn" class="btn">Завантажити</button>
+          <button id="mhPrevBtn" class="btn secondary">Назад</button>
+          <button id="mhNextBtn" class="btn secondary">Вперед</button>
+        </div>
+
+        <details>
+          <summary>Додатково (токен доступу)</summary>
+          <div style="margin-top:10px">
+            <label for="authToken">Токен доступу (опціонально)</label>
+            <input id="authToken" type="text" placeholder="Встав JWT (можна без слова Bearer)" />
+            <div class="small muted" style="margin-top:8px">
+              Якщо бачиш помилку 401/403 — потрібен токен. Можна вставити <b>з Bearer</b> або <b>без</b>.
+            </div>
+          </div>
+        </details>
+
+        <div id="mhStatus" class="alert" style="margin-top:12px">
+          <div class="badge">📌</div>
+          <div>
+            <div style="font-weight:900; margin-bottom:2px;">Статус</div>
+            <div class="muted">Готово. Натисни “Завантажити”.</div>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi">
+            <div class="t">Остання медіана</div>
+            <div id="kpiLastMedian" class="v">—</div>
+            <div class="s">ціна</div>
+          </div>
+          <div class="kpi">
+            <div class="t">Зміна медіани</div>
+            <div id="kpiDeltaMedian" class="v">—</div>
+            <div class="s">проти попереднього</div>
+          </div>
+          <div class="kpi">
+            <div class="t">Діапазон (P75–P25)</div>
+            <div id="kpiSpread" class="v">—</div>
+            <div class="s">ціни</div>
+          </div>
+          <div class="kpi">
+            <div class="t">Оголошень</div>
+            <div id="kpiItemsCount" class="v">—</div>
+            <div class="s">items_count</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th class="nowrap">Час</th>
+              <th class="nowrap">Оголошень</th>
+              <th class="nowrap">Медіана</th>
+              <th class="nowrap">P25</th>
+              <th class="nowrap">P75</th>
+            </tr>
+          </thead>
+          <tbody id="mhTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PAGE: QUERIES -->
+    <section id="page-queries" class="page">
+      <div class="card">
+        <div class="section-title">
+          <h2>Попит (пошукові запити)</h2>
+          <div class="hint">Що люди шукають найчастіше</div>
+        </div>
+
+        <div class="row">
+          <button id="qReloadBtn" class="btn">Оновити список</button>
+          <div id="status" class="muted" style="font-weight:700">Завантаження…</div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Запит</th>
+              <th class="nowrap">К-сть</th>
+              <th>Категорія</th>
+              <th class="nowrap">Впевненість</th>
+              <th>Джерело</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PAGE: INSIGHTS -->
+    <section id="page-insights" class="page">
+      <div class="card">
+        <div class="section-title">
+          <h2>Висновки</h2>
+          <div class="hint">Тут буде “розумний” помічник (mini-LLM)</div>
+        </div>
+
+        <div class="alert">
+          <div class="badge">✨</div>
+          <div>
+            <div style="font-weight:900; margin-bottom:2px;">Що буде далі</div>
+            <div class="muted">
+              Після інвестиції додамо міні-нейронку для:
+              <ul style="margin:8px 0 0; padding-left:18px; color:var(--muted); font-weight:600">
+                <li>пояснення ринку “людською мовою”</li>
+                <li>підказок по ціноутворенню та ризикам</li>
+                <li>рекомендацій “що робити далі”</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="foot">© SellCase • MVP</div>
   </div>
 
+  <!-- ВАЖЛИВО: ніякого inline JS -->
   <script src="app.js"></script>
 </body>
-</html>
+  </html>
