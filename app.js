@@ -616,7 +616,7 @@
     ctx.fillText(`${fmtMoney(max)} ₴`, 10, pad.t + 12);
     ctx.fillTex
 
-  /* ========= SellCase boot / routing patch =========
+/* ========= SellCase boot / routing patch =========
    Paste this at the VERY END of app.js (after last line).
    If some ids differ in your HTML, tell me and I’ll adapt.
 =================================================== */
@@ -1013,4 +1013,4 @@
 
   // IMPORTANT: start after DOM ready
   document.addEventListener("DOMContentLoaded", boot);
-})();
+})();         
