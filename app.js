@@ -1,28 +1,21 @@
-/* ========= SellCase app.js (final) =========
-   Works with your Swagger:
+/* ========= SellCase app.js (final, updated) =========
+   Swagger confirms:
    - POST /auth/register (application/json): { email, full_name, password }
    - POST /auth/login (application/x-www-form-urlencoded): username, password
-   - GET  /auth/me (returns { email, full_name, id, created_at, is_active })
-   - POST /auth/logout (if exists; if not, it will just clear UI)
-   - POST /leads/ (optional)
-   - GET  /leads/all (optional)
-   - GET  /metrics/summary (optional)
-   - GET  /health (optional)
+   - GET  /auth/me returns { email, full_name, id, created_at, is_active }
 */
 
-const API_BASE = "https://sellcase-backend.onrender.com"; // <-- проверь, что именно это у тебя
+const API_BASE = "https://sellcase-backend.onrender.com"; // <-- проверь
 
-// Если какие-то пути отличаются — меняй тут:
 const ENDPOINTS = {
   health: "/health",
   register: "/auth/register",
   login: "/auth/login",
   me: "/auth/me",
-  logout: "/auth/logout", // если нет такого — оставь, код обработает
-  metricsSummary: "/metrics/summary",
-  leadsCreate: "/leads/",
-  leadsAll: "/leads/all",
+  logout: "/auth/logout", // если нет — просто очистим UI
 };
+
+const LS_KEY = "sellcase_saved_queries_v1";
 
 const $ = (id) => document.getElementById(id);
 
@@ -71,7 +64,6 @@ function setServerStatus(state) {
 /* ========= Networking ========= */
 
 function normalizeFetchError(err) {
-  // try to show human text instead of "Failed to fetch"
   const m = String(err?.message || err || "");
   if (m.toLowerCase().includes("failed to fetch")) {
     return "Не вдалося підключитися до сервера. Перевірте API_BASE, CORS та доступність backend.";
@@ -127,9 +119,8 @@ async function apiFetchForm(path, formParams) {
   });
 
   const text = await res.text();
-  // login часто возвращает token/json, но нам не обязательно
+
   if (!res.ok) {
-    // попробуем вытащить detail/message
     let data = null;
     try {
       data = text ? JSON.parse(text) : null;
@@ -143,7 +134,6 @@ async function apiFetchForm(path, formParams) {
     throw new Error(msg);
   }
 
-  // если это JSON — вернём, иначе вернём текст
   try {
     return text ? JSON.parse(text) : null;
   } catch {
@@ -173,48 +163,78 @@ function initNav() {
   });
 }
 
-/* ========= AUTH ========= */
+/* ========= AUTH UI Mode ========= */
 
-const state = {
-  me: null,
-};
+const state = { me: null };
 
-function splitName(fullName) {
-  if (!fullName) return { first: "", last: "" };
-  const parts = String(fullName).trim().split(/\s+/);
-  if (parts.length === 1) return { first: parts[0], last: "" };
-  return { first: parts[0], last: parts.slice(1).join(" ") };
-}
-
-function renderMe() {
-  const meName = $("meName");
-  const meEmail = $("meEmail");
-
-  if (!meName || !meEmail) return;
-
-  if (!state.me) {
-    meName.textContent = "—";
-    meEmail.textContent = "Не виконано вхід.";
-    return;
+function initialsFrom(fullName, email) {
+  const n = String(fullName || "").trim();
+  if (n && n !== "Користувач") {
+    const parts = n.split(/\s+/).slice(0, 2);
+    return parts.map(p => (p[0] || "").toUpperCase()).join("") || "U";
   }
-
-  const email = state.me.email ?? "—";
-  const full_name = state.me.full_name ?? "";
-  const { first, last } = splitName(full_name);
-
-  meName.textContent = `${first} ${last}`.trim() || full_name || "—";
-  meEmail.textContent = email;
+  const e = String(email || "").trim();
+  return e ? e[0].toUpperCase() : "U";
 }
+
+function formatDateISO(iso) {
+  if (!iso) return "—";
+  return String(iso).replace("T", " ").replace("Z", "").slice(0, 19);
+}
+
+function uiAfterLoginOn(meLike) {
+  const forms = $("authForms");
+  if (forms) forms.style.display = "none";
+
+  const done = $("authDone");
+  if (done) done.style.display = "block";
+
+  const email =
+    meLike?.email ||
+    (document.getElementById("loginEmail")?.value || "").trim();
+
+  const full =
+    meLike?.full_name ||
+    meLike?.fullName ||
+    "Користувач";
+
+  const av = $("userAvatar");
+  const title = $("userTitle");
+  const sub = $("userSubtitle");
+
+  if (title) title.textContent = full || "Користувач";
+  if (sub) sub.textContent = "✅ Вхід успішно виконано.";
+  if (av) av.textContent = initialsFrom(full, email);
+
+  // extended fields
+  if ($("meId")) $("meId").textContent = String(meLike?.id ?? "—");
+  if ($("meCreated")) $("meCreated").textContent = formatDateISO(meLike?.created_at);
+  if ($("meActive")) $("meActive").textContent =
+    meLike?.is_active === true ? "Активний" :
+    meLike?.is_active === false ? "Неактивний" : "—";
+}
+
+function uiAfterLoginOff() {
+  const forms = $("authForms");
+  if (forms) forms.style.display = "block";
+
+  const done = $("authDone");
+  if (done) done.style.display = "none";
+
+  setHint("loginInfo", "");
+}
+
+/* ========= AUTH ========= */
 
 async function fetchMe() {
   try {
     const me = await apiFetchJson(ENDPOINTS.me);
     state.me = me;
-    renderMe();
+    // update profile card with real data
+    uiAfterLoginOn(me);
     return me;
   } catch {
     state.me = null;
-    renderMe();
     return null;
   }
 }
@@ -238,6 +258,7 @@ async function handleRegister(e) {
     if (!email) throw new Error("Вкажіть email.");
     if (!password || password.length < 8) throw new Error("Пароль має містити мінімум 8 символів.");
 
+    // IMPORTANT: your API expects full_name
     await apiFetchJson(ENDPOINTS.register, {
       method: "POST",
       body: {
@@ -247,16 +268,14 @@ async function handleRegister(e) {
       },
     });
 
-    showToast("Ви успішно зареєструвалися.");
-
-    // hide registration block, keep only login
+    showToast("✅ Ви успішно зареєструвалися.");
+    // hide register block, keep login
     const regBlock = $("registerBlock");
     if (regBlock) regBlock.style.display = "none";
 
-    // fill login email
     if ($("loginEmail")) $("loginEmail").value = email;
     if ($("loginPassword")) $("loginPassword").value = "";
-    setHint("loginInfo", "Тепер виконайте вхід.");
+    setHint("loginInfo", "✅ Реєстрація успішна. Тепер виконайте вхід.");
 
   } catch (err) {
     setError(errEl, normalizeFetchError(err));
@@ -270,7 +289,7 @@ async function handleLogin(e) {
 
   const errEl = $("accountError");
   setError(errEl, "");
-  setHint("loginInfo", "Вхід…");
+  setHint("loginInfo", "");
 
   const btn = $("btnLogin");
   if (btn) btn.disabled = true;
@@ -281,19 +300,25 @@ async function handleLogin(e) {
   try {
     if (!email || !password) throw new Error("Вкажіть email та пароль.");
 
-    // Swagger shows x-www-form-urlencoded with "username" and "password"
+    // IMPORTANT: your login uses x-www-form-urlencoded with username/password
     await apiFetchForm(ENDPOINTS.login, {
       username: email,
       password,
-      // grant_type, scope, client_id, client_secret are optional
     });
 
-    showToast("Вхід виконано успішно.");
-    setHint("loginInfo", "");
+    // show success immediately (even if /auth/me fails for a moment)
+    showToast("✅ Вхід успішно виконано.");
+    setHint("loginInfo", "✅ Вхід успішно виконано.");
 
+    uiAfterLoginOn({ email, full_name: "Користувач" });
+
+    // fetch real user profile
     await fetchMe();
+
+    // stay on account screen (profile)
+    setTab("account");
+
   } catch (err) {
-    setHint("loginInfo", "");
     setError(errEl, normalizeFetchError(err));
   } finally {
     if (btn) btn.disabled = false;
@@ -308,16 +333,17 @@ async function handleLogout() {
   if (btn) btn.disabled = true;
 
   try {
-    // if your backend has logout - good. if not, we'll just clear UI.
+    // try server logout, but don't depend on it
     try {
       await apiFetchJson(ENDPOINTS.logout, { method: "POST" });
     } catch {
-      // ignore if endpoint missing
+      // ignore if missing
     }
 
     state.me = null;
-    renderMe();
+    uiAfterLoginOff();
     showToast("Ви вийшли з акаунта.");
+
   } catch (err) {
     setError(errEl, normalizeFetchError(err));
   } finally {
@@ -336,11 +362,111 @@ function initAuth() {
     e.preventDefault();
     handleLogout();
   });
+
+  const go = $("btnGoMarket");
+  if (go) go.addEventListener("click", (e) => {
+    e.preventDefault();
+    setTab("market");
+  });
 }
 
-/* ========= OPTIONAL: Metrics / Leads / Market =========
-   If you later connect UI to /metrics/summary etc., here are helpers.
-*/
+/* ========= Saved Queries (localStorage) ========= */
+
+function getSavedQueries() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function setSavedQueries(items) {
+  localStorage.setItem(LS_KEY, JSON.stringify(items));
+}
+
+function renderSavedQueries() {
+  const box = $("savedQueries");
+  if (!box) return;
+
+  const items = getSavedQueries();
+  if (!items.length) {
+    box.textContent = "Поки немає збережених запитів.";
+    return;
+  }
+
+  box.innerHTML = items.map((q, i) => {
+    const title = `${q.text || "—"}${q.category ? " · " + q.category : ""}`;
+    return `
+      <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-weight:1100;">${title}</div>
+          <div class="hint">points: ${q.points ?? "—"}, reliable: ${q.reliable ? "так" : "ні"}, offset: ${q.offset ?? 0}</div>
+        </div>
+        <div class="row">
+          <button class="btn" type="button" data-action="apply" data-index="${i}">Застосувати</button>
+          <button class="btn" type="button" data-action="del" data-index="${i}">🗑</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  box.onclick = (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    const idx = Number(b.dataset.index);
+    const action = b.dataset.action;
+    const items2 = getSavedQueries();
+
+    if (action === "del") {
+      items2.splice(idx, 1);
+      setSavedQueries(items2);
+      renderSavedQueries();
+      return;
+    }
+
+    if (action === "apply") {
+      const q = items2[idx];
+      if ($("marketPoints")) $("marketPoints").value = String(q.points ?? 30);
+      if ($("marketOffset")) $("marketOffset").value = String(q.offset ?? 0);
+      if ($("marketReliable")) $("marketReliable").checked = !!q.reliable;
+      setTab("market");
+      showToast("⭐ Запит застосовано.");
+    }
+  };
+}
+
+function initQueryUI() {
+  const run = $("btnRunQuery");
+  if (run) run.addEventListener("click", () => {
+    showToast("Запит збережено як чернетка. Підключимо API для реального запуску.");
+  });
+
+  const save = $("btnSaveQuery");
+  if (save) save.addEventListener("click", () => {
+    const points = Number($("marketPoints")?.value || 30);
+    const offset = Number($("marketOffset")?.value || 0);
+    const reliable = !!$("marketReliable")?.checked;
+
+    const item = {
+      text: $("queryText")?.value || "",
+      category: $("queryCategory")?.value || "",
+      points,
+      offset,
+      reliable,
+      ts: Date.now()
+    };
+
+    const items = getSavedQueries();
+    items.unshift(item);
+    setSavedQueries(items.slice(0, 30));
+    renderSavedQueries();
+    showToast("⭐ Запит збережено.");
+  });
+
+  renderSavedQueries();
+}
+
+/* ========= Server Health ========= */
 
 async function ping() {
   setServerStatus("unknown");
@@ -348,13 +474,7 @@ async function ping() {
     await apiFetchJson(ENDPOINTS.health);
     setServerStatus("ok");
   } catch {
-    // If /health doesn't exist, try /metrics/summary as fallback:
-    try {
-      await apiFetchJson(ENDPOINTS.metricsSummary);
-      setServerStatus("ok");
-    } catch {
-      setServerStatus("down");
-    }
+    setServerStatus("down");
   }
 }
 
@@ -363,12 +483,39 @@ async function ping() {
 function init() {
   initNav();
   initAuth();
+  initQueryUI();
 
-  // initial checks
+  // Projects page currently is UI-only; you can connect to API later.
+  const projBtn = $("btnProjectsReload");
+  if (projBtn) projBtn.addEventListener("click", () => {
+    $("projectsList").textContent = "Поки що не підключено до API проектів.";
+    setHint("projectsInfo", "MVP: підключимо згодом.");
+  });
+
+  // Market buttons (placeholders — подключим когда будет endpoint)
+  const loadBtn = $("btnMarketLoad");
+  if (loadBtn) loadBtn.addEventListener("click", () => {
+    setHint("marketHint", "MVP: підключимо ринок до API. Зараз це макет.");
+    showToast("Завантаження ринку: підключимо API ендпоінт.");
+  });
+  const prev = $("btnPrev");
+  const next = $("btnNext");
+  if (prev) prev.addEventListener("click", () => showToast("Попередні: підключимо пагінацію до API."));
+  if (next) next.addEventListener("click", () => showToast("Наступні: підключимо пагінацію до API."));
+
+  // initial
   ping();
-  fetchMe();
 
-  // default tab
+  // If user already logged in (cookie), show profile mode
+  fetchMe().then((me) => {
+    if (me) {
+      uiAfterLoginOn(me);
+      setTab("account");
+    } else {
+      uiAfterLoginOff();
+    }
+  });
+
   setTab("market");
 }
 
