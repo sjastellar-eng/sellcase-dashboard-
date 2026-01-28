@@ -1,584 +1,637 @@
-(() => {
-  // === CONFIG ===
-  const API_BASE = "https://sellcase-backend.onrender.com";
+/* SellCase Dashboard (Light SaaS UI)
+ * - Auth: /auth/register (JSON), /auth/login (form-url-encoded), /auth/me (Bearer)
+ * - Projects: GET /olx/projects/
+ * - Market: GET /olx/projects/{id}/market/history?limit=&offset=&only_valid=
+ * - Queries: GET /analytics/top-search-queries-with-category, /analytics/top-search-queries
+ *
+ * Designed to be resilient to small schema differences.
+ */
 
-  // === STORAGE KEYS ===
-  const KEY_TOKEN = "sellcase_token";
-  const KEY_TOKEN_TYPE = "sellcase_token_type";
-  const KEY_EMAIL = "sellcase_email";
-  const KEY_PROJECT_ID = "sellcase_project_id";
-  const KEY_LIMIT = "sellcase_limit";
+(function () {
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-  // === ELEMENTS ===
-  const apiDot = document.getElementById("apiDot");
-  const apiText = document.getElementById("apiText");
-  const btnLogout = document.getElementById("btnLogout");
-  const btnLogout2 = document.getElementById("btnLogout2");
+  // --- Storage keys
+  const S = {
+    token: "sellcase_token",
+    apiBase: "sellcase_api_base",
+    lastProjectId: "sellcase_last_project_id",
+    lastMetric: "sellcase_chart_metric",
+  };
 
-  const screenAuth = document.getElementById("screenAuth");
-  const screenApp = document.getElementById("screenApp");
+  // --- Elements
+  const apiDot = $("#apiDot");
+  const apiText = $("#apiText");
+  const btnLogout = $("#btnLogout");
 
-  // Tabs/routes
-  const tabMarket = document.getElementById("tab-market");
-  const tabQueries = document.getElementById("tab-queries");
-  const tabAccount = document.getElementById("tab-account");
+  const viewMarket = $("#viewMarket");
+  const viewQueries = $("#viewQueries");
+  const viewProjects = $("#viewProjects");
+  const viewAccount = $("#viewAccount");
 
-  const pageMarket = document.getElementById("pageMarket");
-  const pageSide = document.getElementById("pageSide");
-  const pageQueries = document.getElementById("pageQueries");
-  const pageAccount = document.getElementById("pageAccount");
+  const selProject = $("#selProject");
+  const inpLimit = $("#inpLimit");
+  const inpOffset = $("#inpOffset");
+  const chkOnlyValid = $("#chkOnlyValid");
+  const btnLoadMarket = $("#btnLoadMarket");
+  const btnPrev = $("#btnPrev");
+  const btnNext = $("#btnNext");
+  const marketMsg = $("#marketMsg");
+  const marketTbody = $("#marketTbody");
 
-  // Auth UI
-  const btnShowLogin = document.getElementById("btnShowLogin");
-  const btnShowRegister = document.getElementById("btnShowRegister");
-  const boxLogin = document.getElementById("boxLogin");
-  const boxRegister = document.getElementById("boxRegister");
-  const authError = document.getElementById("authError");
-  const authHint = document.getElementById("authHint");
+  const kpiLastMedian = $("#kpiLastMedian");
+  const kpiLastMedianSub = $("#kpiLastMedianSub");
+  const kpiDeltaMedian = $("#kpiDeltaMedian");
+  const kpiDeltaMedianSub = $("#kpiDeltaMedianSub");
+  const kpiSpread = $("#kpiSpread");
+  const kpiSpreadSub = $("#kpiSpreadSub");
+  const kpiItems = $("#kpiItems");
+  const kpiItemsSub = $("#kpiItemsSub");
 
-  const loginEmail = document.getElementById("loginEmail");
-  const loginPassword = document.getElementById("loginPassword");
-  const btnLogin = document.getElementById("btnLogin");
+  const chartCanvas = $("#chart");
 
-  const regName = document.getElementById("regName");
-  const regEmail = document.getElementById("regEmail");
-  const regPassword = document.getElementById("regPassword");
-  const btnRegister = document.getElementById("btnRegister");
+  const inpApiBase = $("#inpApiBase");
+  const inpTokenManual = $("#inpTokenManual");
+  const btnSaveAdvanced = $("#btnSaveAdvanced");
+  const btnClearToken = $("#btnClearToken");
 
-  // Market UI
-  const projectIdEl = document.getElementById("projectId");
-  const limitEl = document.getElementById("limit");
-  const offsetEl = document.getElementById("offset");
-  const onlyValidEl = document.getElementById("onlyValid");
-  const btnLoadMarket = document.getElementById("btnLoadMarket");
-  const btnPrev = document.getElementById("btnPrev");
-  const btnNext = document.getElementById("btnNext");
-  const marketStatus = document.getElementById("marketStatus");
-  const marketError = document.getElementById("marketError");
-  const marketTbody = document.getElementById("marketTbody");
+  const inpQlimit = $("#inpQlimit");
+  const selQmode = $("#selQmode");
+  const btnLoadQueries = $("#btnLoadQueries");
+  const queriesMsg = $("#queriesMsg");
+  const queriesTbody = $("#queriesTbody");
+  const qHeadRow = $("#qHeadRow");
 
-  const kpiLastMedian = document.getElementById("kpiLastMedian");
-  const kpiLastTime = document.getElementById("kpiLastTime");
-  const kpiDeltaMedian = document.getElementById("kpiDeltaMedian");
-  const kpiDeltaHint = document.getElementById("kpiDeltaHint");
-  const kpiSpread = document.getElementById("kpiSpread");
-  const kpiSpreadHint = document.getElementById("kpiSpreadHint");
-  const kpiItems = document.getElementById("kpiItems");
-  const kpiItemsHint = document.getElementById("kpiItemsHint");
+  const btnReloadProjects = $("#btnReloadProjects");
+  const projectsMsg = $("#projectsMsg");
+  const projectsTbody = $("#projectsTbody");
 
-  const chart = document.getElementById("chart");
-  const chartMeta = document.getElementById("chartMeta");
-  const ctx = chart.getContext("2d");
+  const authEmail = $("#authEmail");
+  const authPass = $("#authPass");
+  const authName = $("#authName");
+  const btnLogin = $("#btnLogin");
+  const btnRegister = $("#btnRegister");
+  const authMsg = $("#authMsg");
+  const meBox = $("#meBox");
 
-  // Queries UI
-  const btnLoadQueries = document.getElementById("btnLoadQueries");
-  const queriesStatus = document.getElementById("queriesStatus");
-  const queriesError = document.getElementById("queriesError");
-  const queriesTbody = document.getElementById("queriesTbody");
+  const btnDiag = $("#btnDiag");
+  const diagBox = $("#diagBox");
 
-  // Account UI
-  const meInfo = document.getElementById("meInfo");
+  // --- State
+  const state = {
+    token: localStorage.getItem(S.token) || "",
+    apiBase: localStorage.getItem(S.apiBase) || "",
+    me: null,
+    projects: [],
+    marketRows: [],
+    chartMetric: localStorage.getItem(S.lastMetric) || "median",
+  };
 
-  // === HELPERS ===
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  // --- Helpers
+  function apiBase() {
+    const manual = (state.apiBase || "").trim();
+    if (manual) return manual.replace(/\/+$/, "");
+    return location.origin.replace(/\/+$/, "");
+  }
 
   function setApiStatus(ok, text) {
-    apiDot.classList.toggle("ok", !!ok);
+    apiDot.classList.remove("ok", "bad");
+    apiDot.classList.add(ok ? "ok" : "bad");
     apiText.textContent = text;
   }
 
-  function show(el) { el.classList.remove("hidden"); }
-  function hide(el) { el.classList.add("hidden"); }
-
-  function setError(el, msg) {
-    if (!msg) { hide(el); el.textContent = ""; return; }
-    el.textContent = msg;
-    show(el);
+  function showNote(el, text, kind = "note") {
+    el.classList.remove("hide");
+    el.classList.remove("warn", "danger");
+    if (kind === "warn") el.classList.add("warn");
+    if (kind === "danger") el.classList.add("danger");
+    el.textContent = text;
+  }
+  function hideNote(el) {
+    el.classList.add("hide");
+    el.textContent = "";
   }
 
-  function escapeHtml(s) {
-    return String(s)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+  function fmtNum(x) {
+    if (x === null || x === undefined || x === "") return "—";
+    const n = Number(x);
+    if (!Number.isFinite(n)) return String(x);
+    return n.toLocaleString("uk-UA");
   }
-
-  function formatMoneyUA(n) {
-    const num = Number(n);
-    if (!Number.isFinite(num)) return "—";
-    return num.toLocaleString("uk-UA");
+  function fmtMoney(x) {
+    if (x === null || x === undefined) return "—";
+    const n = Number(x);
+    if (!Number.isFinite(n)) return String(x);
+    return n.toLocaleString("uk-UA");
   }
-
-  function formatDateTimeUA(iso) {
+  function fmtISO(iso) {
     if (!iso) return "—";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return String(iso);
-    return d.toLocaleString("uk-UA", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
+    // Keep it simple: show YYYY-MM-DD HH:MM
+    const s = String(iso);
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+    return m ? `${m[1]} ${m[2]}` : s;
   }
 
-  function getToken() {
-    return localStorage.getItem(KEY_TOKEN) || "";
-  }
-  function getTokenType() {
-    return localStorage.getItem(KEY_TOKEN_TYPE) || "bearer";
-  }
-  function setToken(token, type="bearer") {
-    localStorage.setItem(KEY_TOKEN, token);
-    localStorage.setItem(KEY_TOKEN_TYPE, type);
-  }
-  function clearToken() {
-    localStorage.removeItem(KEY_TOKEN);
-    localStorage.removeItem(KEY_TOKEN_TYPE);
-  }
-
-  function setLoggedInUI(isLoggedIn) {
-    if (isLoggedIn) {
-      hide(screenAuth);
-      show(screenApp);
-      show(btnLogout);
-    } else {
-      show(screenAuth);
-      hide(screenApp);
-      hide(btnLogout);
-    }
-  }
-
-  function selectTab(route) {
-    const setSel = (tab, on) => tab.setAttribute("aria-selected", on ? "true" : "false");
-    setSel(tabMarket, route === "#market");
-    setSel(tabQueries, route === "#queries");
-    setSel(tabAccount, route === "#account");
-
-    // pages
-    const showMarket = route === "#market";
-    const showQueries = route === "#queries";
-    const showAccount = route === "#account";
-
-    // Market page состоит из двух карточек (левая + правая)
-    pageMarket.classList.toggle("hidden", !showMarket);
-    pageSide.classList.toggle("hidden", !showMarket);
-
-    pageQueries.classList.toggle("hidden", !showQueries);
-    pageAccount.classList.toggle("hidden", !showAccount);
-  }
-
-  function routeTo(hash) {
-    const allowed = ["#market", "#queries", "#account"];
-    const h = allowed.includes(hash) ? hash : "#market";
-    location.hash = h;
-  }
-
-  function ensureAuthOrRedirect() {
-    const token = getToken();
-    if (!token) {
-      setLoggedInUI(false);
-      routeTo("#market");
-      return false;
-    }
-    setLoggedInUI(true);
-    return true;
+  function authHeader() {
+    const t = (state.token || "").trim();
+    if (!t) return {};
+    // If user pasted without "Bearer", add it
+    const hasBearer = /^Bearer\s+/i.test(t);
+    return { Authorization: hasBearer ? t : `Bearer ${t}` };
   }
 
   async function apiFetch(path, opts = {}) {
-    const headers = Object.assign({}, opts.headers || {});
-    headers["accept"] = headers["accept"] || "application/json";
+    const url = apiBase() + path;
+    const headers = {
+      ...(opts.headers || {}),
+      ...authHeader(),
+    };
 
-    const token = getToken();
-    if (token) {
-      const type = getTokenType();
-      headers["authorization"] = `${(type || "bearer").charAt(0).toUpperCase() + (type || "bearer").slice(1)} ${token}`;
-      // На всякий случай: многие бэки ожидают строго "Bearer"
-      headers["authorization"] = `Bearer ${token}`;
-    }
-
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(url, {
       ...opts,
-      headers
+      headers,
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`HTTP ${res.status}\n${text || res.statusText}`);
+    const ctype = res.headers.get("content-type") || "";
+    let body = null;
+    if (ctype.includes("application/json")) {
+      try { body = await res.json(); } catch { body = null; }
+    } else {
+      try { body = await res.text(); } catch { body = null; }
     }
 
-    const ct = res.headers.get("content-type") || "";
-    if (ct.includes("application/json")) return res.json();
-    return res.text();
+    if (!res.ok) {
+      const msg = typeof body === "string" ? body : (body?.detail || body?.message || JSON.stringify(body));
+      const err = new Error(`HTTP ${res.status}: ${msg || "Request failed"}`);
+      err.status = res.status;
+      err.body = body;
+      throw err;
+    }
+    return body;
   }
 
-  // === API STATUS PING ===
-  async function checkServer() {
-    // Мы не знаем точно /health. Делаем "мягкую" проверку:
-    // 1) пробуем открыть docs (часто есть), 2) fallback: лёгкий GET на корень.
-    try {
-      await fetch(`${API_BASE}/docs`, { method: "GET" });
-      setApiStatus(true, "Сервер онлайн");
-      return;
-    } catch (_) {}
-    try {
-      await fetch(`${API_BASE}/`, { method: "GET" });
-      setApiStatus(true, "Сервер онлайн");
-      return;
-    } catch (_) {}
-    setApiStatus(false, "Сервер недоступний");
+  function setToken(t) {
+    state.token = (t || "").trim();
+    if (state.token) localStorage.setItem(S.token, state.token);
+    else localStorage.removeItem(S.token);
+    inpTokenManual.value = state.token;
+    btnLogout.classList.toggle("hide", !state.token);
   }
 
-  // === AUTH ===
-  function showAuthMode(mode) {
-    setError(authError, "");
-    if (mode === "login") {
-      btnShowLogin.classList.add("primary");
-      btnShowRegister.classList.remove("primary");
-      boxLogin.classList.remove("hidden");
-      boxRegister.classList.add("hidden");
-      authHint.textContent = "Введіть email і пароль.";
-    } else {
-      btnShowRegister.classList.add("primary");
-      btnShowLogin.classList.remove("primary");
-      boxRegister.classList.remove("hidden");
-      boxLogin.classList.add("hidden");
-      authHint.textContent = "Створіть акаунт, потім ми увійдемо автоматично.";
+  // --- Routing
+  function setActiveRoute(route) {
+    const map = {
+      "#/market": viewMarket,
+      "#/queries": viewQueries,
+      "#/projects": viewProjects,
+      "#/account": viewAccount,
+    };
+    Object.values(map).forEach(v => v.classList.remove("active"));
+    (map[route] || viewMarket).classList.add("active");
+
+    $$(".tab").forEach(btn => {
+      const isActive = btn.dataset.route === route;
+      btn.setAttribute("aria-current", isActive ? "page" : "false");
+    });
+  }
+
+  function currentRoute() {
+    const h = location.hash || "#/market";
+    if (h.startsWith("#/")) return h;
+    return "#/market";
+  }
+
+  function go(route) {
+    location.hash = route;
+  }
+
+  // --- Init navigation
+  $$(".tab").forEach(btn => {
+    btn.addEventListener("click", () => go(btn.dataset.route));
+  });
+  window.addEventListener("hashchange", () => setActiveRoute(currentRoute()));
+
+  // --- Server health
+  async function checkHealth() {
+    try {
+      await apiFetch("/health");
+      setApiStatus(true, "сервер онлайн");
+    } catch (e) {
+      setApiStatus(false, "сервер недоступний");
+    }
+  }
+
+  // --- Auth / Me
+  async function loadMe() {
+    if (!state.token) {
+      state.me = null;
+      meBox.className = "note warn";
+      meBox.textContent = "Увійдіть, щоб побачити профіль.";
+      return;
+    }
+    try {
+      const me = await apiFetch("/auth/me");
+      state.me = me;
+      meBox.className = "note";
+      meBox.textContent = `Ви увійшли як: ${me?.email || "—"}  ·  ID: ${me?.id ?? "—"}`;
+    } catch (e) {
+      state.me = null;
+      meBox.className = "note danger";
+      meBox.textContent = `Не вдалося завантажити профіль: ${e.message}`;
     }
   }
 
   async function login(email, password) {
-    // OAuth2 password flow: form-url-encoded
-    const body = new URLSearchParams();
-    body.set("grant_type", "password");
-    body.set("username", email);
-    body.set("password", password);
+    // Swagger screenshot shows x-www-form-urlencoded with fields username/password.
+    const data = new URLSearchParams();
+    data.set("username", email);
+    data.set("password", password);
+    data.set("grant_type", "password");
 
-    const res = await fetch(`${API_BASE}/auth/token`, {
+    const body = await apiFetch("/auth/login", {
       method: "POST",
-      headers: {
-        "accept": "application/json",
-        "content-type": "application/x-www-form-urlencoded"
-      },
-      body
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: data.toString(),
     });
 
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      throw new Error(`Не вдалося увійти.\nHTTP ${res.status}\n${t}`);
-    }
-
-    const data = await res.json();
-    if (!data || !data.access_token) {
-      throw new Error("Сервер не повернув токен доступу.");
-    }
-
-    setToken(data.access_token, data.token_type || "bearer");
-    localStorage.setItem(KEY_EMAIL, email);
-    return data;
+    // Expected: {access_token, token_type, user_id}
+    const token = body?.access_token || body?.token || body?.jwt || "";
+    if (!token) throw new Error("Бек не повернув токен (access_token).");
+    const tokenType = body?.token_type || "bearer";
+    const full = /^bearer$/i.test(tokenType) ? `Bearer ${token}` : token;
+    setToken(full);
+    return body;
   }
 
-  async function register(full_name, email, password) {
-    const payload = { email, full_name, password };
-    const data = await apiFetch("/auth/register", {
+  async function register(email, full_name, password) {
+    // Swagger shows JSON body: {email, full_name, password}
+    const body = await apiFetch("/auth/register", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, full_name, password }),
     });
-    return data;
+    return body;
   }
 
-  function logout() {
-    clearToken();
-    setLoggedInUI(false);
-    meInfo.textContent = "—";
+  // --- Projects
+  function projectLabel(p) {
+    const id = p?.id ?? p?.project_id ?? p?.projectId ?? "";
+    const name = p?.name || p?.title || p?.query || p?.keyword || "";
+    if (name) return `${name} (ID ${id})`;
+    return `Проєкт ID ${id}`;
   }
 
-  // === MVP DATA: QUERIES ===
-  async function loadTopQueries() {
-    setError(queriesError, "");
-    queriesStatus.textContent = "Завантаження…";
-    queriesTbody.innerHTML = "";
+  function extractProjectId(p) {
+    return p?.id ?? p?.project_id ?? p?.projectId ?? null;
+  }
+
+  function fillProjectSelect() {
+    selProject.innerHTML = "";
+
+    if (state.projects.length > 0) {
+      state.projects.forEach(p => {
+        const id = extractProjectId(p);
+        const opt = document.createElement("option");
+        opt.value = String(id);
+        opt.textContent = projectLabel(p);
+        selProject.appendChild(opt);
+      });
+    }
+
+    // Fallback option: manual ID
+    const optManual = document.createElement("option");
+    optManual.value = "__manual__";
+    optManual.textContent = "Ввести ID вручну…";
+    selProject.appendChild(optManual);
+
+    // Restore last selected
+    const last = localStorage.getItem(S.lastProjectId);
+    if (last && [...selProject.options].some(o => o.value === String(last))) {
+      selProject.value = String(last);
+    } else if (state.projects.length > 0) {
+      selProject.value = String(extractProjectId(state.projects[0]));
+    } else {
+      selProject.value = "__manual__";
+    }
+  }
+
+  async function loadProjects() {
+    hideNote(projectsMsg);
+    try {
+      const body = await apiFetch("/olx/projects/");
+      // could be {items:[...]} or just [...]
+      const items = Array.isArray(body) ? body : (body?.items || body?.projects || []);
+      state.projects = items || [];
+      fillProjectSelect();
+      renderProjectsTable();
+      if (state.projects.length === 0) {
+        showNote(projectsMsg, "Поки що немає проєктів. Створіть проєкт у бекенді або через endpoint POST /olx/projects/ (зараз у фронті ми це не показуємо, щоб не плодити зайвих полів).", "warn");
+      } else {
+        showNote(projectsMsg, `Знайдено проєктів: ${state.projects.length}.`, "note");
+      }
+    } catch (e) {
+      showNote(projectsMsg, `Не вдалося завантажити проєкти: ${e.message}`, "danger");
+      state.projects = [];
+      fillProjectSelect();
+      renderProjectsTable();
+    }
+  }
+
+  function renderProjectsTable() {
+    projectsTbody.innerHTML = "";
+    for (const p of state.projects) {
+      const tr = document.createElement("tr");
+      const id = extractProjectId(p);
+      const name = p?.name || p?.title || p?.query || "—";
+      const details = Object.keys(p || {}).slice(0, 6).map(k => `${k}: ${String(p[k])}`).join(" · ");
+      tr.innerHTML = `
+        <td class="mono">${id ?? "—"}</td>
+        <td>${escapeHtml(String(name))}</td>
+        <td class="small">${escapeHtml(details || "—")}</td>
+      `;
+      projectsTbody.appendChild(tr);
+    }
+  }
+
+  // --- Market
+  function normalizeMarketRows(body) {
+    // body can be: array OR {items:[...], total: N} OR {data:[...]}
+    const rows = Array.isArray(body) ? body : (body?.items || body?.data || body?.rows || []);
+    // normalize fields
+    return (rows || []).map(r => ({
+      taken_at: r?.taken_at || r?.takenAt || r?.ts || r?.time || r?.created_at || r?.createdAt,
+      items_count: r?.items_count ?? r?.itemsCount ?? r?.count ?? r?.n,
+      median: r?.median ?? r?.p50 ?? r?.m,
+      p25: r?.p25 ?? r?.q25 ?? r?.low,
+      p75: r?.p75 ?? r?.q75 ?? r?.high,
+    }));
+  }
+
+  function getSelectedProjectId() {
+    const v = selProject.value;
+    if (v === "__manual__") {
+      const manual = prompt("Введіть Project ID (число):");
+      if (!manual) return null;
+      const id = String(manual).trim();
+      if (!id) return null;
+      localStorage.setItem(S.lastProjectId, id);
+      // Keep select at manual but remember id
+      return id;
+    }
+    localStorage.setItem(S.lastProjectId, v);
+    return v;
+  }
+
+  async function loadMarket() {
+    hideNote(marketMsg);
+
+    const pid = getSelectedProjectId();
+    if (!pid) return;
+
+    const limit = Math.max(1, Number(inpLimit.value || 30));
+    const offset = Math.max(0, Number(inpOffset.value || 0));
+    const onlyValid = chkOnlyValid.checked ? "true" : "false";
 
     try {
-      const data = await apiFetch("/analytics/top-search-queries?days=30&limit=50", { method: "GET" });
-      const rows = Array.isArray(data) ? data : [];
-      queriesStatus.textContent = rows.length ? `Знайдено: ${rows.length}` : "Поки що немає даних.";
+      const qs = new URLSearchParams({
+        limit: String(limit),
+        offset: String(offset),
+        only_valid: onlyValid,
+      });
 
-      for (const item of rows) {
-        const c = item.category || {};
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${escapeHtml(item.query ?? "")}</td>
-          <td>${escapeHtml(item.count ?? "")}</td>
-          <td>${escapeHtml(c.name ?? "—")}</td>
-          <td>${escapeHtml(typeof c.confidence === "number" ? c.confidence.toFixed(2) : "—")}</td>
-          <td>${escapeHtml(c.source ?? "—")}</td>
-        `;
-        queriesTbody.appendChild(tr);
-      }
-      setApiStatus(true, "Сервер онлайн");
-    } catch (err) {
-      setError(queriesError, String(err));
-      queriesStatus.textContent = "Помилка завантаження.";
-      if (String(err).includes("401") || String(err).includes("403")) {
-        logout();
-      }
-      setApiStatus(false, "Проблема з API");
+      const body = await apiFetch(`/olx/projects/${encodeURIComponent(pid)}/market/history?` + qs.toString());
+      const rows = normalizeMarketRows(body);
+
+      state.marketRows = rows;
+      renderMarket(rows);
+      showNote(marketMsg, `Завантажено точок: ${rows.length}.`, "note");
+    } catch (e) {
+      // if 401/403, suggest going to account
+      const isAuth = e.status === 401 || e.status === 403;
+      showNote(
+        marketMsg,
+        isAuth
+          ? `Потрібна авторизація (HTTP ${e.status}). Перейдіть у “Акаунт”, увійдіть і повторіть.`
+          : `Не вдалося завантажити ринок: ${e.message}`,
+        isAuth ? "warn" : "danger"
+      );
+      state.marketRows = [];
+      renderMarket([]);
     }
   }
 
-  // === MVP DATA: MARKET HISTORY ===
-  function resetMarketUI() {
+  function renderMarket(rows) {
+    // Table
     marketTbody.innerHTML = "";
-    kpiLastMedian.textContent = "—";
-    kpiLastTime.textContent = "—";
-    kpiDeltaMedian.textContent = "—";
-    kpiDeltaHint.textContent = "—";
-    kpiSpread.textContent = "—";
-    kpiSpreadHint.textContent = "—";
-    kpiItems.textContent = "—";
-    kpiItemsHint.textContent = "—";
-    chartMeta.textContent = "—";
-    drawChart([], [], [], []);
+    for (const r of rows) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="mono">${escapeHtml(fmtISO(r.taken_at))}</td>
+        <td>${fmtNum(r.items_count)}</td>
+        <td>${fmtMoney(r.median)}</td>
+        <td>${fmtMoney(r.p25)}</td>
+        <td>${fmtMoney(r.p75)}</td>
+      `;
+      marketTbody.appendChild(tr);
+    }
+
+    // KPI
+    if (!rows.length) {
+      kpiLastMedian.textContent = "—";
+      kpiLastMedianSub.textContent = "—";
+      kpiDeltaMedian.textContent = "—";
+      kpiDeltaMedianSub.textContent = "—";
+      kpiSpread.textContent = "—";
+      kpiSpreadSub.textContent = "—";
+      kpiItems.textContent = "—";
+      kpiItemsSub.textContent = "—";
+      drawChart([], state.chartMetric);
+      return;
+    }
+
+    const last = rows[0];          // assume backend returns DESC (newest first); if not, still okay
+    const prev = rows[1] || null;
+
+    const spread = (Number(last.p75) || 0) - (Number(last.p25) || 0);
+    const delta = prev ? (Number(last.median) || 0) - (Number(prev.median) || 0) : null;
+
+    kpiLastMedian.textContent = fmtMoney(last.median);
+    kpiLastMedianSub.textContent = `Оновлено: ${fmtISO(last.taken_at)}`;
+
+    kpiDeltaMedian.textContent = delta === null ? "—" : (delta >= 0 ? `+${fmtMoney(delta)}` : `${fmtMoney(delta)}`);
+    kpiDeltaMedianSub.textContent = prev ? `Порівняння з: ${fmtISO(prev.taken_at)}` : "Недостатньо даних";
+
+    kpiSpread.textContent = fmtMoney(spread);
+    kpiSpreadSub.textContent = `P75: ${fmtMoney(last.p75)} · P25: ${fmtMoney(last.p25)}`;
+
+    kpiItems.textContent = fmtNum(last.items_count);
+    kpiItemsSub.textContent = "Кількість оголошень у вибірці";
+
+    drawChart(rows, state.chartMetric);
   }
 
-  function drawChart(labels, median, p25, p75, metaText = "") {
-    // Простая отрисовка: линии, авто-скейл
-    const W = chart.width;
-    const H = chart.height;
+  // --- Simple line chart (canvas)
+  function drawChart(rows, metric) {
+    const canvas = chartCanvas;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
 
-    ctx.clearRect(0, 0, W, H);
-
-    // фон
+    // background
+    ctx.clearRect(0, 0, rect.width, rect.height);
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, 0, rect.width, rect.height);
+
+    const pad = { l: 38, r: 14, t: 14, b: 26 };
+
+    // if no data
+    if (!rows || rows.length < 2) {
+      ctx.fillStyle = "#5b667a";
+      ctx.font = "13px system-ui";
+      ctx.fillText("Немає даних для графіка", pad.l, pad.t + 18);
+      return;
+    }
+
+    // We want oldest -> newest left->right
+    const data = [...rows].reverse().map(r => {
+      const v = Number(r[metric]);
+      return Number.isFinite(v) ? v : null;
+    }).filter(v => v !== null);
+
+    if (data.length < 2) {
+      ctx.fillStyle = "#5b667a";
+      ctx.font = "13px system-ui";
+      ctx.fillText("Немає даних для графіка", pad.l, pad.t + 18);
+      return;
+    }
+
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const span = (max - min) || 1;
+
+    const W = rect.width - pad.l - pad.r;
+    const H = rect.height - pad.t - pad.b;
+
+    function x(i) {
+      return pad.l + (i / (data.length - 1)) * W;
+    }
+    function y(v) {
+      return pad.t + (1 - (v - min) / span) * H;
+    }
 
     // grid
-    ctx.strokeStyle = "rgba(15,23,42,.08)";
+    ctx.strokeStyle = "rgba(230,234,243,1)";
     ctx.lineWidth = 1;
-    for (let i=1;i<=4;i++){
-      const y = (H/5)*i;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(W, y);
-      ctx.stroke();
+    ctx.beginPath();
+    const lines = 4;
+    for (let i = 0; i <= lines; i++) {
+      const yy = pad.t + (i / lines) * H;
+      ctx.moveTo(pad.l, yy);
+      ctx.lineTo(pad.l + W, yy);
     }
+    ctx.stroke();
 
-    const series = [
-      { name:"P25", data:p25, stroke:"rgba(16,185,129,.95)" },
-      { name:"Медіана", data:median, stroke:"rgba(37,99,235,.95)" },
-      { name:"P75", data:p75, stroke:"rgba(15,23,42,.65)" }
-    ];
-
-    const all = [...median, ...p25, ...p75].filter(x => Number.isFinite(x));
-    if (all.length < 2) {
-      // подпись
-      ctx.fillStyle = "rgba(100,116,139,.9)";
-      ctx.font = "14px system-ui";
-      ctx.fillText("Немає даних для графіка.", 14, 28);
-      return;
-    }
-
-    const min = Math.min(...all);
-    const max = Math.max(...all);
-    const pad = (max - min) * 0.08 || 1;
-    const yMin = min - pad;
-    const yMax = max + pad;
-
-    const n = Math.max(median.length, p25.length, p75.length);
-    const x = (i) => 14 + (W - 28) * (n === 1 ? 0 : i / (n - 1));
-    const y = (v) => {
-      const t = (v - yMin) / (yMax - yMin);
-      return (H - 18) - t * (H - 36);
-    };
-
-    // draw series
-    for (const s of series) {
-      const pts = s.data.map((v, i) => ({x:x(i), y:y(v)})).filter(p => Number.isFinite(p.y));
-      if (pts.length < 2) continue;
-
-      ctx.strokeStyle = s.stroke;
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (let i=1;i<pts.length;i++){
-        ctx.lineTo(pts[i].x, pts[i].y);
-      }
-      ctx.stroke();
-    }
-
-    // legend
+    // axis labels (min/max)
+    ctx.fillStyle = "#5b667a";
     ctx.font = "12px system-ui";
-    ctx.fillStyle = "rgba(100,116,139,.95)";
-    ctx.fillText(`Діапазон: ${formatMoneyUA(Math.round(yMin))} – ${formatMoneyUA(Math.round(yMax))}`, 14, H - 6);
+    ctx.fillText(fmtMoney(max), 10, pad.t + 12);
+    ctx.fillText(fmtMoney(min), 10, pad.t + H);
 
-    if (metaText) chartMeta.textContent = metaText;
+    // line
+    ctx.strokeStyle = "rgba(47,107,255,.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++) {
+      const xx = x(i);
+      const yy = y(data[i]);
+      if (i === 0) ctx.moveTo(xx, yy);
+      else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+
+    // points
+    ctx.fillStyle = "rgba(47,107,255,.95)";
+    for (let i = 0; i < data.length; i++) {
+      const xx = x(i);
+      const yy = y(data[i]);
+      ctx.beginPath();
+      ctx.arc(xx, yy, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
-  function computeKpis(items) {
-    // items: [{taken_at, items_count, median_price, p25_price, p75_price}]
-    if (!items || items.length === 0) return;
+  // --- Queries
+  async function loadQueries() {
+    hideNote(queriesMsg);
+    queriesTbody.innerHTML = "";
 
-    const last = items[0];                 // у нас часто последние идут сверху; но неизвестно
-    const sorted = [...items].sort((a,b) => new Date(a.taken_at) - new Date(b.taken_at));
-    const newest = sorted[sorted.length - 1];
-    const prev = sorted.length > 1 ? sorted[sorted.length - 2] : null;
+    const limit = Math.max(1, Number(inpQlimit.value || 50));
+    const mode = selQmode.value;
 
-    const lastMedian = Number(newest.median_price);
-    const lastP25 = Number(newest.p25_price);
-    const lastP75 = Number(newest.p75_price);
-    const lastItems = Number(newest.items_count);
-
-    kpiLastMedian.textContent = Number.isFinite(lastMedian) ? formatMoneyUA(Math.round(lastMedian)) : "—";
-    kpiLastTime.textContent = `Оновлено: ${formatDateTimeUA(newest.taken_at)}`;
-
-    if (prev) {
-      const prevMedian = Number(prev.median_price);
-      const delta = (Number.isFinite(lastMedian) && Number.isFinite(prevMedian)) ? (lastMedian - prevMedian) : NaN;
-      if (Number.isFinite(delta)) {
-        const sign = delta > 0 ? "+" : "";
-        kpiDeltaMedian.textContent = `${sign}${formatMoneyUA(Math.round(delta))}`;
-        const pct = prevMedian ? (delta / prevMedian) * 100 : null;
-        kpiDeltaHint.textContent = pct ? `Зміна ~${pct.toFixed(1)}% від попередньої точки` : "Зміна від попередньої точки";
+    try {
+      let body;
+      if (mode === "with_category") {
+        body = await apiFetch(`/analytics/top-search-queries-with-category?limit=${encodeURIComponent(limit)}`);
       } else {
-        kpiDeltaMedian.textContent = "—";
-        kpiDeltaHint.textContent = "—";
-      }
-    } else {
-      kpiDeltaMedian.textContent = "—";
-      kpiDeltaHint.textContent = "Недостатньо точок для порівняння";
-    }
-
-    const spread = (Number.isFinite(lastP75) && Number.isFinite(lastP25)) ? (lastP75 - lastP25) : NaN;
-    kpiSpread.textContent = Number.isFinite(spread) ? formatMoneyUA(Math.round(spread)) : "—";
-    kpiSpreadHint.textContent = Number.isFinite(spread) ? "Вищий розкид = більше “розкидані” ціни" : "—";
-
-    kpiItems.textContent = Number.isFinite(lastItems) ? formatMoneyUA(Math.round(lastItems)) : "—";
-    kpiItemsHint.textContent = Number.isFinite(lastItems) ? "Обсяг пропозиції в моменті" : "—";
-  }
-
-  async function loadMarketHistory() {
-    setError(marketError, "");
-    marketStatus.textContent = "Завантаження…";
-    marketTbody.innerHTML = "";
-
-    const projectId = Number(projectIdEl.value);
-    const limit = Number(limitEl.value || 30);
-    const offset = Number(offsetEl.value || 0);
-    const onlyValid = !!onlyValidEl.checked;
-
-    if (!projectId || projectId < 1) {
-      setError(marketError, "Будь ласка, вкажи ID проєкту.");
-      marketStatus.textContent = "—";
-      return;
-    }
-
-    // persist user prefs
-    localStorage.setItem(KEY_PROJECT_ID, String(projectId));
-    localStorage.setItem(KEY_LIMIT, String(limit));
-
-    try {
-      const url =
-        `/olx/projects/${encodeURIComponent(projectId)}/market/history` +
-        `?limit=${encodeURIComponent(limit)}` +
-        `&offset=${encodeURIComponent(offset)}` +
-        `&only_valid=${encodeURIComponent(onlyValid)}`;
-
-      const data = await apiFetch(url, { method: "GET" });
-
-      // ожидаем { total, limit, offset, items: [...] } или массив
-      const items = Array.isArray(data) ? data : (data.items || []);
-      const total = (data && typeof data.total === "number") ? data.total : items.length;
-
-      marketStatus.textContent = `Показано: ${items.length} (усього: ${total})`;
-      setApiStatus(true, "Сервер онлайн");
-
-      // table rows (сортируем по времени по убыванию)
-      const sorted = [...items].sort((a,b) => new Date(b.taken_at) - new Date(a.taken_at));
-
-      for (const it of sorted) {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${escapeHtml(formatDateTimeUA(it.taken_at))}</td>
-          <td>${escapeHtml(it.items_count ?? "—")}</td>
-          <td>${escapeHtml(formatMoneyUA(it.median_price))}</td>
-          <td>${escapeHtml(formatMoneyUA(it.p25_price))}</td>
-          <td>${escapeHtml(formatMoneyUA(it.p75_price))}</td>
-        `;
-        marketTbody.appendChild(tr);
+        body = await apiFetch(`/analytics/top-search-queries?limit=${encodeURIComponent(limit)}`);
       }
 
-      computeKpis(items);
-
-      // chart data (по возрастанию времени)
-      const asc = [...items].sort((a,b) => new Date(a.taken_at) - new Date(b.taken_at));
-      const labels = asc.map(x => x.taken_at);
-      const med = asc.map(x => Number(x.median_price));
-      const p25 = asc.map(x => Number(x.p25_price));
-      const p75 = asc.map(x => Number(x.p75_price));
-
-      drawChart(labels, med, p25, p75, `${items.length} точок • проєкт #${projectId}`);
-
-      // nav buttons
-      btnPrev.disabled = offset <= 0;
-      btnNext.disabled = offset + limit >= total;
-
-    } catch (err) {
-      setError(marketError, String(err));
-      marketStatus.textContent = "Помилка завантаження.";
-      resetMarketUI();
-
-      if (String(err).includes("401") || String(err).includes("403")) {
-        // token invalid -> logout
-        logout();
-      }
-      setApiStatus(false, "Проблема з API");
+      const rows = Array.isArray(body) ? body : (body?.items || body?.data || []);
+      renderQueries(rows, mode);
+      showNote(queriesMsg, `Завантажено: ${rows.length}`, "note");
+    } catch (e) {
+      showNote(queriesMsg, `Не вдалося завантажити запити: ${e.message}`, "danger");
     }
   }
 
-  // === INIT DEFAULTS ===
-  function loadPrefs() {
-    const p = localStorage.getItem(KEY_PROJECT_ID);
-    const l = localStorage.getItem(KEY_LIMIT);
-    if (p) projectIdEl.value = p;
-    if (l) limitEl.value = l;
+  function renderQueries(rows, mode) {
+    // Head can remain same; we try best-effort mapping
+    queriesTbody.innerHTML = "";
+    for (const r of rows) {
+      const query = r?.query || r?.text || r?.q || r?.keyword || "—";
+      const count = r?.count ?? r?.items_count ?? r?.n ?? "—";
+      const category = r?.category || r?.category_name || r?.cat || "—";
+      const conf = r?.confidence ?? r?.score ?? r?.prob ?? "—";
+      const src = r?.source || r?.src || "—";
 
-    if (!limitEl.value) limitEl.value = "30";
-    if (!offsetEl.value) offsetEl.value = "0";
-    onlyValidEl.checked = true;
-  }
-
-  // === ROUTING ===
-  function onHashChange() {
-    const ok = ensureAuthOrRedirect();
-    if (!ok) return;
-
-    const hash = location.hash || "#market";
-    selectTab(hash);
-
-    // eager load per page (optional)
-    if (hash === "#queries") {
-      loadTopQueries().catch(()=>{});
-    }
-    if (hash === "#account") {
-      const email = localStorage.getItem(KEY_EMAIL) || "—";
-      meInfo.textContent = `Email: ${email}`;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(String(query))}</td>
+        <td>${fmtNum(count)}</td>
+        <td>${escapeHtml(String(category))}</td>
+        <td>${escapeHtml(String(conf))}</td>
+        <td>${escapeHtml(String(src))}</td>
+      `;
+      queriesTbody.appendChild(tr);
     }
   }
 
-  // === EVENTS ===
-  tabMarket.addEventListener("click", () => routeTo("#market"));
-  tabQueries.addEventListener("click", () => routeTo("#queries"));
-  tabAccount.addEventListener("click", () => routeTo("#account"));
-  window.addEventListener("hashchange", onHashChange);
+  // --- Advanced settings
+  function loadAdvancedUI() {
+    inpApiBase.value = state.apiBase;
+    inpTokenManual.value = state.token;
+  }
 
-  btnShowLogin.addEventListener("click", () => showAuthMode("login"));
-  btnShowRegister.addEventListener("click", () => showAuthMode("register"));
+  btnSaveAdvanced.addEventListener("click", () => {
+    state.apiBase = (inpApiBase.value || "").trim();
+    if (state.apiBase) localStorage.setItem(S.apiBase, state.apiBase);
+    else localStorage.removeItem(S.apiBase);
 
-  btnLogin.addEventListener("click", async () => {
-    setError(authError, "");
-    authHint.textContent = "Вхід…";
-    btnLogin.disabled = true;
-    try {
-      const email = (loginEmail.value || "").trim();
-      const password = loginPassword.value || "";
-      if (!email || !password) throw new Error("Вкажи email і пароль.");
-      await login(email, password);
-     
+    // token manual (optional)
+    const t = (inpTokenManual.value || "").trim();
+    if (t) setToken(t);
+
+    checkHealth();
+  });
+
+  btnClearToken.addEventListener("click", () => {
+    setToken("");
+    loadMe();
+  });
+
+  // --- Market controls
+  btnLoadMarket.addEventListener("click", loadMarket);
+  btnPrev.addEventListener("click", () 
