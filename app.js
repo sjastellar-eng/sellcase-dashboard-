@@ -1,41 +1,62 @@
-/* ========= CONFIG ========= */
+/* ========= SellCase app.js (final) =========
+   Works with your Swagger:
+   - POST /auth/register (application/json): { email, full_name, password }
+   - POST /auth/login (application/x-www-form-urlencoded): username, password
+   - GET  /auth/me (returns { email, full_name, id, created_at, is_active })
+   - POST /auth/logout (if exists; if not, it will just clear UI)
+   - POST /leads/ (optional)
+   - GET  /leads/all (optional)
+   - GET  /metrics/summary (optional)
+   - GET  /health (optional)
+*/
 
-// 1) Впиши свой backend URL:
-const API_BASE = "https://YOUR-BACKEND.onrender.com";
+const API_BASE = "https://sellcase-backend.onrender.com"; // <-- проверь, что именно это у тебя
 
-// 2) Если у тебя другие пути — поменяй тут:
+// Если какие-то пути отличаются — меняй тут:
 const ENDPOINTS = {
   health: "/health",
-  projects: "/projects",          // GET -> [{id,name}] или [{id,title}]
-  market: "/market/overview",     // GET -> { typical_price, delta_typical_price, range, count } (пример)
-  register: "/auth/register",     // POST {first_name,last_name,email,password}
-  login: "/auth/login",           // POST {email,password}
-  me: "/auth/me",                 // GET -> {first_name,last_name,email}
-  logout: "/auth/logout",         // POST
+  register: "/auth/register",
+  login: "/auth/login",
+  me: "/auth/me",
+  logout: "/auth/logout", // если нет такого — оставь, код обработает
+  metricsSummary: "/metrics/summary",
+  leadsCreate: "/leads/",
+  leadsAll: "/leads/all",
 };
-
-/* ========= HELPERS ========= */
 
 const $ = (id) => document.getElementById(id);
 
+/* ========= UI helpers ========= */
+
 function showToast(msg) {
   const t = $("toast");
+  if (!t) return;
   t.textContent = msg;
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), 3500);
 }
 
 function setError(el, msg) {
+  if (!el) return;
   el.textContent = msg || "";
   el.classList.toggle("show", !!msg);
 }
 
+function setHint(id, msg) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = msg || "";
+}
+
 function setServerStatus(state) {
   const el = $("serverStatus");
+  if (!el) return;
+
   const dot = el.querySelector(".dot");
   const text = el.querySelector("span:last-child");
+  if (!dot || !text) return;
 
-  dot.classList.remove("red", "green", "gray");
+  dot.classList.remove("red", "green");
   if (state === "ok") {
     dot.classList.add("green");
     text.textContent = "Сервер OK";
@@ -43,12 +64,22 @@ function setServerStatus(state) {
     dot.classList.add("red");
     text.textContent = "Сервер недоступний";
   } else {
-    dot.classList.add("gray");
     text.textContent = "перевірка…";
   }
 }
 
-async function apiFetch(path, { method = "GET", body = null, headers = {} } = {}) {
+/* ========= Networking ========= */
+
+function normalizeFetchError(err) {
+  // try to show human text instead of "Failed to fetch"
+  const m = String(err?.message || err || "");
+  if (m.toLowerCase().includes("failed to fetch")) {
+    return "Не вдалося підключитися до сервера. Перевірте API_BASE, CORS та доступність backend.";
+  }
+  return m || "Невідома помилка.";
+}
+
+async function apiFetchJson(path, { method = "GET", body = null, headers = {} } = {}) {
   const url = API_BASE.replace(/\/$/, "") + path;
 
   const res = await fetch(url, {
@@ -58,7 +89,6 @@ async function apiFetch(path, { method = "GET", body = null, headers = {} } = {}
       ...headers,
     },
     body: body ? JSON.stringify(body) : null,
-    // важно если cookie-сессии:
     credentials: "include",
   });
 
@@ -81,6 +111,46 @@ async function apiFetch(path, { method = "GET", body = null, headers = {} } = {}
   return data;
 }
 
+async function apiFetchForm(path, formParams) {
+  const url = API_BASE.replace(/\/$/, "") + path;
+
+  const body = new URLSearchParams();
+  Object.entries(formParams || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) body.append(k, String(v));
+  });
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+    credentials: "include",
+  });
+
+  const text = await res.text();
+  // login часто возвращает token/json, но нам не обязательно
+  if (!res.ok) {
+    // попробуем вытащить detail/message
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = text || null;
+    }
+    const msg =
+      (data && (data.detail || data.message || data.error)) ||
+      (typeof data === "string" ? data : null) ||
+      `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+
+  // если это JSON — вернём, иначе вернём текст
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return text || null;
+  }
+}
+
 /* ========= NAV ========= */
 
 function setTab(tab) {
@@ -88,296 +158,203 @@ function setTab(tab) {
     b.classList.toggle("active", b.dataset.tab === tab);
   });
   document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
-  $(`section-${tab}`).classList.add("active");
+  const sec = document.getElementById(`section-${tab}`);
+  if (sec) sec.classList.add("active");
 }
 
 function initNav() {
-  $("nav").addEventListener("click", (e) => {
+  const nav = $("nav");
+  if (!nav) return;
+
+  nav.addEventListener("click", (e) => {
     const btn = e.target.closest(".tab");
     if (!btn) return;
     setTab(btn.dataset.tab);
   });
 }
 
-/* ========= STATE ========= */
-
-const state = {
-  projects: [],
-  me: null,
-
-  // market pagination:
-  marketOffset: 0,
-  marketPoints: 30,
-  marketReliable: false,
-  marketProjectId: null,
-
-  // for prev/next enable:
-  canNext: true,
-};
-
-/* ========= PROJECTS ========= */
-
-function normalizeProject(p) {
-  return {
-    id: p.id ?? p.project_id ?? p.uuid ?? p.slug,
-    name: p.name ?? p.title ?? p.project_name ?? String(p.id ?? "Проєкт"),
-  };
-}
-
-function renderProjects() {
-  const list = $("projectsList");
-  const sel = $("marketProject");
-
-  sel.innerHTML = "";
-  if (!state.projects.length) {
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "— немає проєктів —";
-    sel.appendChild(opt);
-    list.textContent = "Немає проєктів.";
-    return;
-  }
-
-  state.projects.forEach((p, idx) => {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = p.name;
-    sel.appendChild(opt);
-
-    if (idx === 0 && !state.marketProjectId) state.marketProjectId = p.id;
-  });
-
-  sel.value = state.marketProjectId;
-
-  list.innerHTML = state.projects
-    .map((p) => `• ${p.name} <span class="muted">(${p.id})</span>`)
-    .join("<br/>");
-}
-
-async function loadProjects() {
-  setError($("projectsError"), "");
-  $("projectsInfo").textContent = "Завантаження…";
-  try {
-    const raw = await apiFetch(ENDPOINTS.projects);
-    const arr = Array.isArray(raw) ? raw : (raw.items || raw.projects || []);
-    state.projects = arr.map(normalizeProject).filter((p) => p.id != null);
-    renderProjects();
-    $("projectsInfo").textContent = `Проєктів: ${state.projects.length}`;
-  } catch (e) {
-    $("projectsInfo").textContent = "";
-    setError($("projectsError"), e.message || "Помилка завантаження проєктів.");
-  }
-}
-
-/* ========= MARKET ========= */
-
-function setMarketButtons() {
-  const prev = $("btnPrev");
-  const next = $("btnNext");
-  prev.disabled = state.marketOffset <= 0;
-  next.disabled = !state.canNext;
-}
-
-function renderMarketKpi(data) {
-  // Подстрой поля под свой API при необходимости
-  const typical = data.typical_price ?? data.typical ?? data.median ?? null;
-  const delta = data.delta_typical_price ?? data.delta ?? data.change ?? null;
-  const range = data.range ?? (data.min != null && data.max != null ? `${data.min}–${data.max}` : null);
-  const count = data.count ?? data.total ?? null;
-
-  $("kpiTypical").textContent = typical != null ? String(typical) : "—";
-  $("kpiDelta").textContent = delta != null ? String(delta) : "—";
-  $("kpiRange").textContent = range != null ? String(range) : "—";
-  $("kpiCount").textContent = count != null ? String(count) : "—";
-}
-
-async function loadMarket() {
-  setError($("marketError"), "");
-  $("marketHint").textContent = "Завантаження…";
-
-  // sync UI -> state
-  state.marketProjectId = $("marketProject").value || null;
-  state.marketPoints = Number($("marketPoints").value || 30);
-  state.marketOffset = Number($("marketOffset").value || 0);
-  state.marketReliable = !!$("marketReliable").checked;
-
-  if (!state.marketProjectId) {
-    $("marketHint").textContent = "";
-    setError($("marketError"), "Оберіть проєкт.");
-    return;
-  }
-
-  try {
-    // пример: query params
-    const params = new URLSearchParams({
-      project_id: String(state.marketProjectId),
-      points: String(state.marketPoints),
-      offset: String(state.marketOffset),
-      reliable_only: state.marketReliable ? "1" : "0",
-    });
-
-    const data = await apiFetch(`${ENDPOINTS.market}?${params.toString()}`);
-
-    renderMarketKpi(data);
-
-    // логика next: если API возвращает "has_more" — используем, иначе считаем true по умолчанию
-    state.canNext = data.has_more != null ? !!data.has_more : true;
-
-    $("marketHint").textContent = `Зсув: ${state.marketOffset}`;
-    setMarketButtons();
-  } catch (e) {
-    $("marketHint").textContent = "";
-    setError($("marketError"), e.message || "Помилка запиту. Перевірте дані.");
-  }
-}
-
-function initMarket() {
-  $("btnMarketLoad").addEventListener("click", (e) => {
-    e.preventDefault();
-    loadMarket();
-  });
-
-  $("btnPrev").addEventListener("click", (e) => {
-    e.preventDefault();
-    state.marketOffset = Math.max(0, state.marketOffset - state.marketPoints);
-    $("marketOffset").value = String(state.marketOffset);
-    loadMarket();
-  });
-
-  $("btnNext").addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!state.canNext) return;
-    state.marketOffset = state.marketOffset + state.marketPoints;
-    $("marketOffset").value = String(state.marketOffset);
-    loadMarket();
-  });
-}
-
 /* ========= AUTH ========= */
 
+const state = {
+  me: null,
+};
+
+function splitName(fullName) {
+  if (!fullName) return { first: "", last: "" };
+  const parts = String(fullName).trim().split(/\s+/);
+  if (parts.length === 1) return { first: parts[0], last: "" };
+  return { first: parts[0], last: parts.slice(1).join(" ") };
+}
+
 function renderMe() {
+  const meName = $("meName");
+  const meEmail = $("meEmail");
+
+  if (!meName || !meEmail) return;
+
   if (!state.me) {
-    $("meName").textContent = "—";
-    $("meEmail").textContent = "Не виконано вхід.";
+    meName.textContent = "—";
+    meEmail.textContent = "Не виконано вхід.";
     return;
   }
-  const fn = state.me.first_name ?? "";
-  const ln = state.me.last_name ?? "";
-  $("meName").textContent = `${fn} ${ln}`.trim() || "—";
-  $("meEmail").textContent = state.me.email ?? "—";
+
+  const email = state.me.email ?? "—";
+  const full_name = state.me.full_name ?? "";
+  const { first, last } = splitName(full_name);
+
+  meName.textContent = `${first} ${last}`.trim() || full_name || "—";
+  meEmail.textContent = email;
 }
 
 async function fetchMe() {
   try {
-    const me = await apiFetch(ENDPOINTS.me);
+    const me = await apiFetchJson(ENDPOINTS.me);
     state.me = me;
     renderMe();
+    return me;
   } catch {
     state.me = null;
     renderMe();
+    return null;
   }
 }
 
 async function handleRegister(e) {
   e.preventDefault();
-  setError($("accountError"), "");
-  $("btnRegister").disabled = true;
 
-  const first_name = $("regFirstName").value.trim();
-  const last_name = $("regLastName").value.trim();
-  const email = $("regEmail").value.trim();
-  const password = $("regPassword").value;
+  const errEl = $("accountError");
+  setError(errEl, "");
+
+  const btn = $("btnRegister");
+  if (btn) btn.disabled = true;
+
+  const first = ($("regFirstName")?.value || "").trim();
+  const last = ($("regLastName")?.value || "").trim();
+  const email = ($("regEmail")?.value || "").trim();
+  const password = $("regPassword")?.value || "";
 
   try {
-    if (!first_name || !last_name) throw new Error("Вкажіть імʼя та прізвище.");
+    if (!first || !last) throw new Error("Вкажіть імʼя та прізвище.");
     if (!email) throw new Error("Вкажіть email.");
     if (!password || password.length < 8) throw new Error("Пароль має містити мінімум 8 символів.");
 
-    await apiFetch(ENDPOINTS.register, {
+    await apiFetchJson(ENDPOINTS.register, {
       method: "POST",
-      body: { first_name, last_name, email, password },
+      body: {
+        email,
+        full_name: `${first} ${last}`.trim(),
+        password,
+      },
     });
 
     showToast("Ви успішно зареєструвалися.");
 
-    // скрываем регистрацию, оставляем вход
-    $("registerBlock").style.display = "none";
+    // hide registration block, keep only login
+    const regBlock = $("registerBlock");
+    if (regBlock) regBlock.style.display = "none";
 
-    // автозаполним вход:
-    $("loginEmail").value = email;
-    $("loginPassword").value = "";
-    $("loginInfo").textContent = "Тепер виконайте вхід.";
+    // fill login email
+    if ($("loginEmail")) $("loginEmail").value = email;
+    if ($("loginPassword")) $("loginPassword").value = "";
+    setHint("loginInfo", "Тепер виконайте вхід.");
 
-    // опционально: сразу перейти на вход
-    // setTab("account");
   } catch (err) {
-    setError($("accountError"), err.message || "Помилка реєстрації.");
+    setError(errEl, normalizeFetchError(err));
   } finally {
-    $("btnRegister").disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 
 async function handleLogin(e) {
   e.preventDefault();
-  setError($("accountError"), "");
-  $("btnLogin").disabled = true;
-  $("loginInfo").textContent = "Вхід…";
 
-  const email = $("loginEmail").value.trim();
-  const password = $("loginPassword").value;
+  const errEl = $("accountError");
+  setError(errEl, "");
+  setHint("loginInfo", "Вхід…");
+
+  const btn = $("btnLogin");
+  if (btn) btn.disabled = true;
+
+  const email = ($("loginEmail")?.value || "").trim();
+  const password = $("loginPassword")?.value || "";
 
   try {
     if (!email || !password) throw new Error("Вкажіть email та пароль.");
 
-    await apiFetch(ENDPOINTS.login, {
-      method: "POST",
-      body: { email, password },
+    // Swagger shows x-www-form-urlencoded with "username" and "password"
+    await apiFetchForm(ENDPOINTS.login, {
+      username: email,
+      password,
+      // grant_type, scope, client_id, client_secret are optional
     });
 
     showToast("Вхід виконано успішно.");
-    $("loginInfo").textContent = "";
+    setHint("loginInfo", "");
+
     await fetchMe();
   } catch (err) {
-    $("loginInfo").textContent = "";
-    setError($("accountError"), err.message || "Помилка входу. Перевірте дані.");
+    setHint("loginInfo", "");
+    setError(errEl, normalizeFetchError(err));
   } finally {
-    $("btnLogin").disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 
 async function handleLogout() {
-  setError($("accountError"), "");
-  $("btnLogout").disabled = true;
+  const errEl = $("accountError");
+  setError(errEl, "");
+
+  const btn = $("btnLogout");
+  if (btn) btn.disabled = true;
+
   try {
-    await apiFetch(ENDPOINTS.logout, { method: "POST" });
+    // if your backend has logout - good. if not, we'll just clear UI.
+    try {
+      await apiFetchJson(ENDPOINTS.logout, { method: "POST" });
+    } catch {
+      // ignore if endpoint missing
+    }
+
     state.me = null;
     renderMe();
     showToast("Ви вийшли з акаунта.");
   } catch (err) {
-    setError($("accountError"), err.message || "Не вдалося вийти.");
+    setError(errEl, normalizeFetchError(err));
   } finally {
-    $("btnLogout").disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 
 function initAuth() {
-  $("loginForm").addEventListener("submit", handleLogin);
-  $("registerForm").addEventListener("submit", handleRegister);
-  $("btnLogout").addEventListener("click", (e) => {
+  const loginForm = $("loginForm");
+  const regForm = $("registerForm");
+  const logoutBtn = $("btnLogout");
+
+  if (loginForm) loginForm.addEventListener("submit", handleLogin);
+  if (regForm) regForm.addEventListener("submit", handleRegister);
+  if (logoutBtn) logoutBtn.addEventListener("click", (e) => {
     e.preventDefault();
     handleLogout();
   });
 }
 
-/* ========= SERVER HEALTH ========= */
+/* ========= OPTIONAL: Metrics / Leads / Market =========
+   If you later connect UI to /metrics/summary etc., here are helpers.
+*/
 
 async function ping() {
   setServerStatus("unknown");
   try {
-    await apiFetch(ENDPOINTS.health);
+    await apiFetchJson(ENDPOINTS.health);
     setServerStatus("ok");
   } catch {
-    setServerStatus("down");
+    // If /health doesn't exist, try /metrics/summary as fallback:
+    try {
+      await apiFetchJson(ENDPOINTS.metricsSummary);
+      setServerStatus("ok");
+    } catch {
+      setServerStatus("down");
+    }
   }
 }
 
@@ -385,24 +362,14 @@ async function ping() {
 
 function init() {
   initNav();
-
-  // Buttons etc.
-  initMarket();
   initAuth();
 
-  $("btnProjectsReload").addEventListener("click", (e) => {
-    e.preventDefault();
-    loadProjects();
-  });
-
-  // First load
+  // initial checks
   ping();
-  loadProjects();
   fetchMe();
 
-  // Set initial market buttons
-  setMarketButtons();
+  // default tab
+  setTab("market");
 }
 
-// Start when DOM ready
 document.addEventListener("DOMContentLoaded", init);
