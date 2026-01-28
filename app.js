@@ -615,3 +615,402 @@
     ctx.font = "12px system-ui";
     ctx.fillText(`${fmtMoney(max)} ₴`, 10, pad.t + 12);
     ctx.fillTex
+
+  /* ========= SellCase boot / routing patch =========
+   Paste this at the VERY END of app.js (after last line).
+   If some ids differ in your HTML, tell me and I’ll adapt.
+=================================================== */
+
+(function () {
+  // ---------- small helpers ----------
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  const S = {
+    token: "sellcase_token",
+    apiBase: "sellcase_api_base",
+    lastProjectId: "sellcase_last_project_id",
+    lastMetric: "sellcase_chart_metric",
+    lastView: "sellcase_last_view",
+  };
+
+  function getApiBase() {
+    // 1) from localStorage
+    const fromLS = localStorage.getItem(S.apiBase);
+    if (fromLS) return fromLS.replace(/\/+$/, "");
+
+    // 2) try infer from current host (if you set it this way)
+    // fallback: same origin
+    return location.origin.replace(/\/+$/, "");
+  }
+
+  function getToken() {
+    return (localStorage.getItem(S.token) || "").trim();
+  }
+
+  function setToken(t) {
+    if (!t) localStorage.removeItem(S.token);
+    else localStorage.setItem(S.token, t.trim());
+  }
+
+  async function apiFetch(path, { method = "GET", headers = {}, body } = {}) {
+    const apiBase = getApiBase();
+    const url = apiBase + path;
+
+    const token = getToken();
+    const h = { ...headers };
+    if (token) h["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+
+    const res = await fetch(url, {
+      method,
+      headers: h,
+      body,
+    });
+
+    // try parse json
+    let data = null;
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      try {
+        data = await res.json();
+      } catch (_) {}
+    } else {
+      try {
+        data = await res.text();
+      } catch (_) {}
+    }
+
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status}`);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  }
+
+  // ---------- UI: views ----------
+  const views = {
+    market: $("#viewMarket"),
+    queries: $("#viewQueries"),
+    projects: $("#viewProjects"),
+    account: $("#viewAccount"),
+  };
+
+  function setActiveTab(name) {
+    // 1) id-based tabs
+    const map = {
+      market: $("#tabMarket"),
+      queries: $("#tabQueries"),
+      projects: $("#tabProjects"),
+      account: $("#tabAccount"),
+    };
+    Object.entries(map).forEach(([k, el]) => {
+      if (!el) return;
+      el.classList.toggle("is-active", k === name);
+      el.setAttribute("aria-current", k === name ? "page" : "false");
+    });
+
+    // 2) data-view tabs
+    $$("[data-view]").forEach((el) => {
+      el.classList.toggle("is-active", (el.getAttribute("data-view") || "") === name);
+    });
+  }
+
+  function showView(name) {
+    Object.entries(views).forEach(([k, el]) => {
+      if (!el) return;
+      el.style.display = k === name ? "" : "none";
+    });
+    setActiveTab(name);
+    localStorage.setItem(S.lastView, name);
+
+    // optional: update hash
+    const hash = `#${name}`;
+    if (location.hash !== hash) history.replaceState(null, "", hash);
+  }
+
+  function bindNav() {
+    // id-based tabs/buttons
+    const tabMarket = $("#tabMarket");
+    const tabQueries = $("#tabQueries");
+    const tabProjects = $("#tabProjects");
+    const tabAccount = $("#tabAccount");
+
+    if (tabMarket) tabMarket.addEventListener("click", (e) => (e.preventDefault(), showView("market")));
+    if (tabQueries) tabQueries.addEventListener("click", (e) => (e.preventDefault(), showView("queries")));
+    if (tabProjects) tabProjects.addEventListener("click", (e) => (e.preventDefault(), showView("projects")));
+    if (tabAccount) tabAccount.addEventListener("click", (e) => (e.preventDefault(), showView("account")));
+
+    // data-view
+    $$("[data-view]").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        const v = el.getAttribute("data-view");
+        if (v) showView(v);
+      });
+    });
+
+    // hash deep-link
+    const h = (location.hash || "").replace("#", "").trim();
+    if (h && views[h]) showView(h);
+    else showView(localStorage.getItem(S.lastView) || "market");
+  }
+
+  // ---------- Copy for user (UA) ----------
+  function explainAuth401() {
+    return (
+      "Потрібен вхід у акаунт.\n\n" +
+      "Якщо ви бачите 401/403 — це означає, що сервер очікує токен доступу (Bearer token).\n" +
+      "У нормальному режимі токен зберігається автоматично після входу і підтягується сам — вручну нічого вводити не потрібно."
+    );
+  }
+
+  // ---------- Account: register / login / me ----------
+  async function checkMeAndUpdateUI() {
+    const el = $("#accountStatus");
+    const btnLogout = $("#btnLogout");
+    const token = getToken();
+
+    if (!token) {
+      if (el) el.textContent = "Ви не увійшли";
+      if (btnLogout) btnLogout.style.display = "none";
+      return false;
+    }
+
+    try {
+      const me = await apiFetch("/auth/me");
+      if (el) el.textContent = `Ви увійшли: ${me.full_name || me.email || "користувач"} (#${me.id})`;
+      if (btnLogout) btnLogout.style.display = "";
+      return true;
+    } catch (err) {
+      // token invalid/expired
+      setToken("");
+      if (el) el.textContent = "Сесія завершилась — увійдіть ще раз";
+      if (btnLogout) btnLogout.style.display = "none";
+      return false;
+    }
+  }
+
+  function bindAccountActions() {
+    const formRegister = $("#formRegister");
+    const formLogin = $("#formLogin");
+    const btnLogout = $("#btnLogout");
+
+    if (formRegister) {
+      formRegister.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = ($("#regEmail")?.value || "").trim();
+        const full_name = ($("#regName")?.value || "").trim();
+        const password = ($("#regPass")?.value || "").trim();
+        const msg = $("#accountMsg");
+
+        try {
+          if (msg) msg.textContent = "Реєструємо...";
+          await apiFetch("/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, full_name, password }),
+          });
+          if (msg) msg.textContent = "Готово! Тепер увійдіть (логін).";
+        } catch (err) {
+          if (msg) msg.textContent = `Помилка реєстрації: ${err.message}`;
+        }
+      });
+    }
+
+    if (formLogin) {
+      formLogin.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const username = ($("#loginEmail")?.value || "").trim(); // backend expects username
+        const password = ($("#loginPass")?.value || "").trim();
+        const msg = $("#accountMsg");
+
+        try {
+          if (msg) msg.textContent = "Входимо...";
+          const body = new URLSearchParams();
+          body.set("grant_type", "password");
+          body.set("username", username);
+          body.set("password", password);
+
+          const data = await apiFetch("/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body,
+          });
+
+          if (data?.access_token) {
+            setToken(data.access_token);
+            if (msg) msg.textContent = "Вхід успішний.";
+            await checkMeAndUpdateUI();
+            await loadProjectsToSelect(); // refresh dropdown
+            showView("market");
+          } else {
+            if (msg) msg.textContent = "Не отримали access_token від сервера.";
+          }
+        } catch (err) {
+          if (msg) msg.textContent = `Помилка входу: ${err.message}`;
+        }
+      });
+    }
+
+    if (btnLogout) {
+      btnLogout.addEventListener("click", async (e) => {
+        e.preventDefault();
+        setToken("");
+        await checkMeAndUpdateUI();
+        const msg = $("#accountMsg");
+        if (msg) msg.textContent = "Ви вийшли з акаунта.";
+        showView("account");
+      });
+    }
+  }
+
+  // ---------- Projects list ----------
+  async function loadProjectsToSelect() {
+    const sel = $("#selProject");
+    const msg = $("#marketMsg");
+
+    if (!sel) return;
+
+    // clear
+    sel.innerHTML = "";
+    const opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = "Оберіть проєкт…";
+    sel.appendChild(opt0);
+
+    try {
+      const ok = await checkMeAndUpdateUI();
+      if (!ok) {
+        if (msg) msg.textContent = explainAuth401();
+        return;
+      }
+
+      const data = await apiFetch("/olx/projects/");
+      const items = Array.isArray(data) ? data : (data.items || data.results || []);
+      items.forEach((p) => {
+        const opt = document.createElement("option");
+        opt.value = String(p.id ?? p.project_id ?? "");
+        opt.textContent = p.name || p.title || `Проєкт #${opt.value}`;
+        sel.appendChild(opt);
+      });
+
+      // restore last
+      const last = localStorage.getItem(S.lastProjectId);
+      if (last) sel.value = last;
+
+      sel.addEventListener("change", () => {
+        if (sel.value) localStorage.setItem(S.lastProjectId, sel.value);
+      });
+    } catch (err) {
+      if (msg) {
+        if (err.status === 401 || err.status === 403) msg.textContent = explainAuth401();
+        else msg.textContent = `Не вдалося завантажити проєкти: ${err.message}`;
+      }
+    }
+  }
+
+  // ---------- Market history (wired to your existing ids) ----------
+  function bindMarketActions() {
+    const btnLoad = $("#btnLoadMarket");
+    const btnPrev = $("#btnPrev");
+    const btnNext = $("#btnNext");
+
+    const inpLimit = $("#inpLimit");
+    const inpOffset = $("#inpOffset");
+    const chkOnlyValid = $("#chkOnlyValid");
+    const selProject = $("#selProject");
+    const msg = $("#marketMsg");
+
+    // NOTE: If your existing app.js already has functions like loadMarketHistory(...)
+    // we can call them. If not, we’ll keep it simple here.
+
+    async function loadMarket() {
+      try {
+        const projectId = (selProject?.value || "").trim();
+        if (!projectId) {
+          if (msg) msg.textContent = "Оберіть проєкт зі списку — тоді покажемо ринок.";
+          return;
+        }
+
+        const limit = Number(inpLimit?.value || 30);
+        const offset = Number(inpOffset?.value || 0);
+        const only_valid = !!chkOnlyValid?.checked;
+
+        if (msg) msg.textContent = "Завантажуємо ринок…";
+
+        const qs = new URLSearchParams();
+        qs.set("limit", String(limit));
+        qs.set("offset", String(offset));
+        qs.set("only_valid", only_valid ? "true" : "false");
+
+        const rows = await apiFetch(`/olx/projects/${encodeURIComponent(projectId)}/market/history?` + qs.toString());
+
+        // If you have existing renderers in app.js (drawChart, render table, update KPI),
+        // they should be reachable here. If not — tell me your function names.
+
+        // Try call common function names if they exist:
+        if (typeof window.renderMarketHistory === "function") window.renderMarketHistory(rows);
+        if (typeof window.drawChart === "function") window.drawChart(rows, localStorage.getItem(S.lastMetric) || "median");
+
+        if (msg) msg.textContent = "Готово.";
+      } catch (err) {
+        if (msg) {
+          if (err.status === 401 || err.status === 403) msg.textContent = explainAuth401();
+          else msg.textContent = `Помилка завантаження: ${err.message}`;
+        }
+      }
+    }
+
+    if (btnLoad) btnLoad.addEventListener("click", (e) => (e.preventDefault(), loadMarket()));
+
+    if (btnPrev)
+      btnPrev.addEventListener("click", (e) => {
+        e.preventDefault();
+        const cur = Number(inpOffset?.value || 0);
+        const limit = Number(inpLimit?.value || 30);
+        const next = Math.max(0, cur - limit);
+        if (inpOffset) inpOffset.value = String(next);
+        loadMarket();
+      });
+
+    if (btnNext)
+      btnNext.addEventListener("click", (e) => {
+        e.preventDefault();
+        const cur = Number(inpOffset?.value || 0);
+        const limit = Number(inpLimit?.value || 30);
+        const next = cur + limit;
+        if (inpOffset) inpOffset.value = String(next);
+        loadMarket();
+      });
+  }
+
+  // ---------- Friendly explanations (UA) ----------
+  function bindHelpText() {
+    const el = $("#statsHelp");
+    if (!el) return;
+
+    el.innerHTML =
+      `<b>Що означають показники?</b><br>` +
+      `<b>Типова ціна (медіана)</b> — ціна “посередині”: половина оголошень дешевші, половина — дорожчі.<br>` +
+      `<b>P25</b> — нижня межа: 25% оголошень дешевші за це значення (умовно “бюджетний сегмент”).<br>` +
+      `<b>P75</b> — верхня межа: 25% оголошень дорожчі за це значення (умовно “преміум сегмент”).<br>` +
+      `<b>Діапазон (P75 − P25)</b> показує, наскільки “розкидані” ціни в ніші.`;
+  }
+
+  // ---------- BOOT ----------
+  async function boot() {
+    bindNav();
+    bindAccountActions();
+    bindMarketActions();
+    bindHelpText();
+
+    // first paint
+    await checkMeAndUpdateUI();
+    await loadProjectsToSelect();
+  }
+
+  // IMPORTANT: start after DOM ready
+  document.addEventListener("DOMContentLoaded", boot);
+})();
