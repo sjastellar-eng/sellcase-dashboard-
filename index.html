@@ -2,13 +2,12 @@
 <html lang="uk">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SellCase — Аналітика ринку</title>
   <meta name="color-scheme" content="light" />
-
   <style>
     :root{
-      --bg1:#f6f8fc;
+      --bg: #f6f8fd;
       --bg2:#eef3ff;
       --card:#ffffff;
       --text:#0b1220;
@@ -17,19 +16,17 @@
       --soft:#f4f6fb;
 
       --brand:#2f6bff;
-      --brand2:#00b894;
+      --ok:#00b894;
       --warn:#ffb020;
       --danger:#e23b3b;
 
-      --shadow: 0 12px 35px rgba(18, 28, 45, .10);
-      --shadow2: 0 6px 18px rgba(18, 28, 45, .08);
-
+      --shadow: 0 14px 40px rgba(18,28,45,.10);
+      --shadow2: 0 8px 22px rgba(18,28,45,.08);
       --r:16px;
       --r2:22px;
 
       --font: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";
     }
-
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
@@ -39,54 +36,41 @@
       background:
         radial-gradient(1200px 600px at 20% -10%, rgba(47,107,255,.18), transparent 55%),
         radial-gradient(900px 450px at 90% 0%, rgba(0,184,148,.16), transparent 55%),
-        linear-gradient(180deg, var(--bg2), var(--bg1));
+        linear-gradient(180deg, var(--bg2), var(--bg));
     }
 
     a{color:var(--brand); text-decoration:none}
     a:hover{text-decoration:underline}
 
-    .wrap{
-      max-width: 1080px;
-      margin: 0 auto;
-      padding: 18px 16px 90px;
-    }
-
-    /* Topbar */
+    .wrap{max-width:1100px;margin:0 auto;padding:18px 16px 80px}
     .topbar{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      background: rgba(255,255,255,.72);
-      border: 1px solid rgba(230,234,243,.85);
-      box-shadow: var(--shadow2);
+      position:sticky; top:10px; z-index:5;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:12px 14px;
       border-radius: var(--r2);
-      padding: 12px 14px;
-      position: sticky;
-      top: 10px;
+      background: rgba(255,255,255,.74);
+      border: 1px solid rgba(230,234,243,.9);
+      box-shadow: var(--shadow2);
       backdrop-filter: blur(10px);
-      z-index: 5;
+      pointer-events:auto;
     }
+    .topbar *{pointer-events:auto}
 
-    .brand{
-      display:flex; align-items:center; gap:10px; min-width: 200px;
-    }
+    .brand{display:flex; align-items:center; gap:10px; min-width: 220px}
     .logo{
-      width:38px; height:38px; border-radius: 12px;
+      width:38px;height:38px;border-radius: 12px;
       background: linear-gradient(135deg, rgba(47,107,255,.22), rgba(0,184,148,.18));
       border: 1px solid rgba(47,107,255,.25);
       display:grid; place-items:center;
     }
-    .logo svg{width:22px; height:22px}
-    .brand h1{font-size:16px; margin:0; line-height:1.15}
-    .brand p{margin:2px 0 0; font-size:12px; color:var(--muted)}
+    .logo svg{width:22px;height:22px}
+    .brand h1{margin:0;font-size:16px;line-height:1.2}
+    .brand p{margin:2px 0 0;font-size:12px;color:var(--muted)}
 
-    .nav{
-      display:flex; gap:8px; flex-wrap:wrap; justify-content:center;
-    }
+    .nav{display:flex; gap:8px; flex-wrap:wrap; justify-content:center}
     .tab{
       border: 1px solid var(--line);
-      background: rgba(255,255,255,.9);
+      background: rgba(255,255,255,.92);
       padding: 9px 12px;
       border-radius: 999px;
       font-size: 13px;
@@ -97,41 +81,31 @@
       user-select:none;
     }
     .tab:hover{transform: translateY(-1px); box-shadow: var(--shadow2)}
-    .tab[aria-current="page"]{
+    .tab.active{
       border-color: rgba(47,107,255,.35);
       background: rgba(47,107,255,.10);
       color: #0a2d88;
     }
-    .tab svg{width:16px; height:16px; opacity:.9}
+    .tab svg{width:16px;height:16px; opacity:.9}
 
-    .right{
-      display:flex; align-items:center; gap:10px;
-      min-width: 200px; justify-content:flex-end;
-    }
-
+    .right{display:flex; align-items:center; gap:10px; min-width: 220px; justify-content:flex-end}
     .pill{
       display:flex; align-items:center; gap:8px;
       padding: 8px 10px;
       border-radius: 999px;
       border: 1px solid var(--line);
-      background: rgba(255,255,255,.85);
+      background: rgba(255,255,255,.88);
       font-size: 12px;
       color: var(--muted);
       white-space: nowrap;
     }
     .dot{
-      width:10px; height:10px; border-radius:50%;
-      background: #cbd3e1;
+      width:10px;height:10px;border-radius:50%;
+      background:#cbd3e1;
       box-shadow: 0 0 0 4px rgba(203,211,225,.35);
     }
-    .dot.ok{
-      background: var(--brand2);
-      box-shadow: 0 0 0 4px rgba(0,184,148,.18);
-    }
-    .dot.bad{
-      background: var(--danger);
-      box-shadow: 0 0 0 4px rgba(226,59,59,.16);
-    }
+    .dot.ok{background:var(--ok); box-shadow: 0 0 0 4px rgba(0,184,148,.18)}
+    .dot.bad{background:var(--danger); box-shadow: 0 0 0 4px rgba(226,59,59,.16)}
 
     .btn{
       border: 1px solid var(--line);
@@ -147,222 +121,176 @@
     .btn.primary{
       background: linear-gradient(180deg, rgba(47,107,255,.95), rgba(47,107,255,.82));
       border-color: rgba(47,107,255,.35);
-      color: #fff;
-    }
-    .btn.ghost{
-      background: transparent;
+      color:#fff;
     }
     .btn.danger{
       background: rgba(226,59,59,.10);
       border-color: rgba(226,59,59,.25);
-      color: #8a1111;
+      color:#7c1414;
     }
 
-    /* Layout */
-    .grid{
-      margin-top: 16px;
-      display:grid;
-      grid-template-columns: 1.1fr .9fr;
-      gap: 14px;
-    }
-    @media (max-width: 920px){
-      .grid{grid-template-columns:1fr}
-      .brand{min-width:auto}
-      .right{min-width:auto}
-    }
+    .grid{margin-top:16px; display:grid; grid-template-columns: 1.2fr .8fr; gap:14px}
+    @media(max-width: 920px){ .grid{grid-template-columns:1fr} .brand,.right{min-width:auto} }
 
     .card{
-      background: rgba(255,255,255,.88);
+      background: rgba(255,255,255,.90);
       border: 1px solid rgba(230,234,243,.92);
       border-radius: var(--r2);
       box-shadow: var(--shadow);
       padding: 14px;
     }
+    .card h2{margin:0 0 6px;font-size:16px}
+    .sub{margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.45}
 
-    .card h2{
-      margin: 0 0 6px;
-      font-size: 16px;
-    }
-    .card .sub{
-      margin: 0 0 12px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .row{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;
-    }
-    .field{
-      flex: 1 1 180px;
-      min-width: 160px;
-    }
-    .field label{
-      display:block;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end}
+    .field{flex: 1 1 220px; min-width: 180px}
+    .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
     .input, select{
       width:100%;
-      padding: 10px 12px;
+      padding:10px 12px;
       border-radius: 14px;
       border: 1px solid var(--line);
       background: #fff;
-      outline: none;
-      font-size: 14px;
+      outline:none;
+      font-size:14px;
     }
     .input:focus, select:focus{
       border-color: rgba(47,107,255,.45);
       box-shadow: 0 0 0 4px rgba(47,107,255,.12);
     }
 
-    .help{
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 8px;
-      line-height: 1.4;
-    }
-
-    .kpis{
-      margin-top: 12px;
-      display:grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-    }
-    @media (max-width: 720px){ .kpis{grid-template-columns:1fr 1fr} }
-    .kpi{
-      padding: 12px;
-      border-radius: 18px;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, #fff, rgba(244,246,251,.8));
-      min-height: 76px;
-    }
-    .kpi .t{font-size:12px; color: var(--muted); margin-bottom:8px}
-    .kpi .v{font-size:18px; font-weight:700}
-    .kpi .d{font-size:12px; color: var(--muted); margin-top:6px}
-
-    .divider{height:1px; background: var(--line); margin: 14px 0}
-
-    .tableWrap{
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      overflow: hidden;
-      background: #fff;
-    }
-    table{
-      width:100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-    thead{
-      background: rgba(244,246,251,.95);
-      color: #263249;
-    }
-    th, td{
-      padding: 11px 12px;
-      border-bottom: 1px solid var(--line);
-      text-align:left;
-      vertical-align: top;
-    }
-    tbody tr:hover{background: rgba(47,107,255,.045)}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace}
-
-    /* Chart */
-    .chartBox{
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      overflow:hidden;
-      background: #fff;
-    }
-    .chartTop{
-      padding: 10px 12px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      background: rgba(244,246,251,.95);
-      border-bottom: 1px solid var(--line);
-    }
-    .chartTop .title{font-weight:700; font-size:13px}
-    .seg{
-      display:flex; gap:6px; flex-wrap:wrap;
-    }
-    .chip{
-      padding: 7px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: #fff;
-      cursor:pointer;
-      font-size: 12px;
-      color: var(--text);
-      user-select:none;
-    }
-    .chip[aria-pressed="true"]{
-      border-color: rgba(47,107,255,.35);
-      background: rgba(47,107,255,.10);
-      color: #0a2d88;
-    }
-    canvas{display:block; width:100%; height:220px;}
-
-    /* Views */
-    .view{display:none}
-    .view.active{display:block}
-
-    /* Auth box */
-    .authCard{
-      padding: 16px;
-      border-radius: var(--r2);
-      border: 1px solid rgba(230,234,243,.92);
-      background: rgba(255,255,255,.9);
-      box-shadow: var(--shadow);
-    }
-    .authTop{
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      align-items:flex-start;
-    }
-    .authTitle h2{margin:0 0 6px; font-size:16px}
-    .authTitle p{margin:0; color:var(--muted); font-size:13px}
-
     .note{
-      padding: 12px;
+      padding:12px;
       border-radius: 18px;
-      background: rgba(47,107,255,.07);
       border: 1px solid rgba(47,107,255,.15);
+      background: rgba(47,107,255,.07);
       color: #163a93;
       font-size: 13px;
       line-height: 1.45;
+      white-space: pre-line;
     }
     .note.warn{
       background: rgba(255,176,32,.10);
       border-color: rgba(255,176,32,.22);
-      color: #6b4a00;
+      color:#6b4a00;
     }
     .note.danger{
       background: rgba(226,59,59,.08);
       border-color: rgba(226,59,59,.18);
-      color: #7c1414;
+      color:#7c1414;
     }
-
-    details{
-      border: 1px dashed rgba(91,102,122,.35);
-      border-radius: 16px;
-      padding: 10px 12px;
-      background: rgba(255,255,255,.7);
-    }
-    summary{cursor:pointer; color: var(--muted); font-size: 13px}
-    .small{font-size:12px; color: var(--muted)}
-    .mt8{margin-top:8px}
-    .mt12{margin-top:12px}
-    .mt16{margin-top:16px}
     .hide{display:none!important}
+
+    .kpis{margin-top:12px; display:grid; grid-template-columns: repeat(4,1fr); gap:10px}
+    @media(max-width:720px){ .kpis{grid-template-columns:1fr 1fr} }
+
+    .kpi{
+      padding:12px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #fff, rgba(244,246,251,.8));
+      min-height: 80px;
+    }
+    .kpi .t{font-size:12px;color:var(--muted);margin-bottom:8px}
+    .kpi .v{font-size:18px;font-weight:800}
+    .kpi .d{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.35}
+
+    .divider{height:1px;background: var(--line);margin:14px 0}
+
+    .chartBox{
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow:hidden;
+      background:#fff;
+    }
+    .chartTop{
+      padding: 10px 12px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background: rgba(244,246,251,.95);
+      border-bottom: 1px solid var(--line);
+    }
+    .chartTop .title{font-weight:800;font-size:13px}
+    .seg{display:flex; gap:6px; flex-wrap:wrap}
+    .chip{
+      padding:7px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background:#fff;
+      cursor:pointer;
+      font-size:12px;
+      user-select:none;
+    }
+    .chip.active{
+      border-color: rgba(47,107,255,.35);
+      background: rgba(47,107,255,.10);
+      color:#0a2d88;
+      font-weight:700;
+    }
+    canvas{display:block;width:100%;height:220px}
+
+    .tableWrap{
+      border:1px solid var(--line);
+      border-radius: 18px;
+      overflow:hidden;
+      background:#fff;
+    }
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead{background: rgba(244,246,251,.95); color:#263249}
+    th,td{padding:11px 12px;border-bottom:1px solid var(--line); text-align:left; vertical-align:top}
+    tbody tr:hover{background: rgba(47,107,255,.045)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace}
+
+    .view{display:none}
+    .view.active{display:block}
+
+    .heroImg{
+      width:100%; border-radius: 18px; border:1px solid var(--line);
+      background: linear-gradient(135deg, rgba(47,107,255,.10), rgba(0,184,148,.08));
+      min-height: 120px;
+      display:flex; align-items:flex-end; justify-content:space-between; padding: 14px;
+      overflow:hidden;
+      position:relative;
+    }
+    .heroImg:before{
+      content:"";
+      position:absolute; inset:-40px -60px auto auto;
+      width:220px; height:220px; border-radius: 50%;
+      background: rgba(47,107,255,.12);
+      filter: blur(1px);
+    }
+    .heroImg:after{
+      content:"";
+      position:absolute; inset:auto auto -70px -70px;
+      width:240px; height:240px; border-radius: 50%;
+      background: rgba(0,184,148,.10);
+    }
+    .heroTxt{position:relative}
+    .heroTxt b{display:block; font-size:14px}
+    .heroTxt span{display:block; font-size:12px; color:var(--muted); margin-top:4px; line-height:1.35}
+    .miniSteps{position:relative; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
+    .step{
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid rgba(230,234,243,.92);
+      background: rgba(255,255,255,.78);
+      font-size:12px; color:var(--muted);
+      display:flex; gap:8px; align-items:center;
+    }
+    .step i{
+      width:18px;height:18px;border-radius:7px;
+      display:grid;place-items:center;
+      background: rgba(47,107,255,.10);
+      border:1px solid rgba(47,107,255,.18);
+      color:#0a2d88;
+      font-style:normal;
+      font-weight:800;
+      font-size:12px;
+    }
   </style>
 </head>
 
 <body>
   <div class="wrap">
-
     <header class="topbar">
       <div class="brand">
         <div class="logo" aria-hidden="true">
@@ -373,12 +301,12 @@
         </div>
         <div>
           <h1>SellCase — Аналітика ринку</h1>
-          <p id="subtitle">Працюйте з даними OLX: ринок, запити, звіти.</p>
+          <p>Зрозумійте ринок перед тим, як вкладати гроші.</p>
         </div>
       </div>
 
       <nav class="nav" aria-label="Навігація">
-        <button class="tab" data-route="#/market" aria-current="page" type="button">
+        <button class="tab active" data-route="#/market" type="button">
           <svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 17V9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 19V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 17V11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 19V6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           Ринок
         </button>
@@ -399,91 +327,80 @@
       <div class="right">
         <div class="pill" title="Стан API">
           <span id="apiDot" class="dot"></span>
-          <span id="apiText">перевірка сервера…</span>
+          <span id="apiText">перевірка…</span>
         </div>
         <button id="btnLogout" class="btn danger hide" type="button">Вийти</button>
       </div>
     </header>
 
-    <!-- Views -->
-    <main class="mt16">
-
+    <main class="mt16" style="margin-top:16px">
       <!-- MARKET -->
       <section id="viewMarket" class="view active">
         <div class="grid">
-
           <div class="card">
-            <h2>Ринок (OLX)</h2>
-            <p class="sub">Історія ринку по вашому проєкту: медіана, P25/P75, кількість оголошень та графік.</p>
+            <div class="heroImg">
+              <div class="heroTxt">
+                <b>Ринок OLX — огляд ніші</b>
+                <span>Побачте типову ціну, дешевий/дорогий сегмент та динаміку. Це допомагає приймати рішення: що продавати і за якою ціною.</span>
+              </div>
+              <div class="miniSteps">
+                <div class="step"><i>1</i> Увійдіть</div>
+                <div class="step"><i>2</i> Оберіть проєкт</div>
+                <div class="step"><i>3</i> Дивіться ринок</div>
+              </div>
+            </div>
+
+            <h2 class="mt16" style="margin-top:16px">Ринок</h2>
+            <p class="sub">Оберіть проєкт і завантажте аналітику. Ми покажемо типову ціну та ціновий коридор.</p>
 
             <div class="row">
               <div class="field">
                 <label>Проєкт</label>
                 <select id="selProject"></select>
               </div>
-              <div class="field" style="max-width:170px">
-                <label>Ліміт</label>
-                <input id="inpLimit" class="input" type="number" min="1" max="200" value="30"/>
+              <div class="field" style="max-width:180px">
+                <label>Кількість точок</label>
+                <input id="inpLimit" class="input" type="number" min="5" max="200" value="30" />
               </div>
-              <div class="field" style="max-width:170px">
-                <label>Зсув</label>
-                <input id="inpOffset" class="input" type="number" min="0" value="0"/>
+              <div class="field" style="max-width:180px">
+                <label>Зсув (для історії)</label>
+                <input id="inpOffset" class="input" type="number" min="0" value="0" />
               </div>
             </div>
 
-            <div class="row mt12">
+            <div class="row" style="margin-top:12px">
               <label class="pill" style="cursor:pointer">
-                <input id="chkOnlyValid" type="checkbox" checked style="width:16px; height:16px">
-                Тільки валідні точки
+                <input id="chkOnlyValid" type="checkbox" checked style="width:16px;height:16px">
+                Показувати тільки надійні дані
               </label>
 
               <button id="btnLoadMarket" class="btn primary" type="button">Завантажити</button>
-              <button id="btnPrev" class="btn" type="button">Назад</button>
-              <button id="btnNext" class="btn" type="button">Вперед</button>
+              <button id="btnPrev" class="btn" type="button">◀ Попередні</button>
+              <button id="btnNext" class="btn" type="button">Наступні ▶</button>
             </div>
 
-            <div id="marketMsg" class="mt12 note hide"></div>
-
-            <details class="mt12">
-              <summary>Додатково (лише якщо потрібно)</summary>
-              <div class="mt12 row">
-                <div class="field">
-                  <label>API base (якщо бек на іншому домені)</label>
-                  <input id="inpApiBase" class="input" placeholder="наприклад: https://sellcase-api.onrender.com" />
-                  <div class="small mt8">За замовчуванням використовується поточний домен.</div>
-                </div>
-                <div class="field">
-                  <label>Токен (JWT)</label>
-                  <input id="inpTokenManual" class="input mono" placeholder="вставте токен (не потрібно, якщо ви увійшли)" />
-                  <div class="small mt8">Якщо все зроблено правильно, токен підтягується автоматично після входу.</div>
-                </div>
-              </div>
-              <div class="row mt12">
-                <button id="btnSaveAdvanced" class="btn" type="button">Зберегти</button>
-                <button id="btnClearToken" class="btn danger" type="button">Очистити токен</button>
-              </div>
-            </details>
+            <div id="marketMsg" class="note hide" style="margin-top:12px"></div>
 
             <div class="kpis">
               <div class="kpi">
-                <div class="t">Остання медіана</div>
-                <div id="kpiLastMedian" class="v">—</div>
-                <div id="kpiLastMedianSub" class="d">—</div>
+                <div class="t">Типова ціна</div>
+                <div id="kpiTypical" class="v">—</div>
+                <div class="d">Ціна, яка найкраще описує ринок. Половина оголошень дешевші, половина — дорожчі.</div>
               </div>
               <div class="kpi">
-                <div class="t">Зміна медіани</div>
-                <div id="kpiDeltaMedian" class="v">—</div>
-                <div id="kpiDeltaMedianSub" class="d">—</div>
+                <div class="t">Зміна типовой ціни</div>
+                <div id="kpiDelta" class="v">—</div>
+                <div id="kpiDeltaSub" class="d">Порівняння з попереднім періодом.</div>
               </div>
               <div class="kpi">
-                <div class="t">Розкид (P75 − P25)</div>
-                <div id="kpiSpread" class="v">—</div>
-                <div id="kpiSpreadSub" class="d">—</div>
+                <div class="t">Діапазон ринку</div>
+                <div id="kpiRange" class="v">—</div>
+                <div class="d">Дешевий сегмент → дорогий сегмент. Показує коридор цін на ринку.</div>
               </div>
               <div class="kpi">
-                <div class="t">К-сть оголошень</div>
-                <div id="kpiItems" class="v">—</div>
-                <div id="kpiItemsSub" class="d">—</div>
+                <div class="t">Кількість оголошень</div>
+                <div id="kpiCount" class="v">—</div>
+                <div class="d">Скільки пропозицій зараз у цій ніші (в межах вибірки).</div>
               </div>
             </div>
 
@@ -491,11 +408,11 @@
 
             <div class="chartBox">
               <div class="chartTop">
-                <div class="title">Графік</div>
-                <div class="seg" role="group" aria-label="Вибір метрики">
-                  <div class="chip" data-metric="median" aria-pressed="true">медіана</div>
-                  <div class="chip" data-metric="p25" aria-pressed="false">P25</div>
-                  <div class="chip" data-metric="p75" aria-pressed="false">P75</div>
+                <div class="title">Динаміка цін</div>
+                <div class="seg">
+                  <div class="chip active" data-metric="typical">Типова ціна</div>
+                  <div class="chip" data-metric="cheap">Дешевий сегмент</div>
+                  <div class="chip" data-metric="expensive">Дорогий сегмент</div>
                 </div>
               </div>
               <canvas id="chart"></canvas>
@@ -507,114 +424,106 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Час</th>
+                    <th>Дата</th>
                     <th>Оголошення</th>
-                    <th>Медіана</th>
-                    <th>P25</th>
-                    <th>P75</th>
+                    <th>Типова ціна</th>
+                    <th>Дешевий сегмент</th>
+                    <th>Дорогий сегмент</th>
                   </tr>
                 </thead>
                 <tbody id="marketTbody"></tbody>
               </table>
             </div>
+
+            <div class="note" style="margin-top:12px">
+              <b>Пояснення:</b><br>
+              <b>Типова ціна</b> — найбільш “чесна” ціна ринку (не спотворюється одиничними дуже дорогими лотами).<br>
+              <b>Дешевий сегмент</b> — межа, нижче якої ~25% найдешевших оголошень.<br>
+              <b>Дорогий сегмент</b> — межа, вище якої ~25% найдорожчих оголошень.
+            </div>
           </div>
 
           <aside class="card">
-            <h2>Швидкі підказки</h2>
-            <p class="sub">Щоб новий користувач не губився.</p>
+            <h2>Швидкий старт</h2>
+            <p class="sub">Як працювати з SellCase без зайвих дій.</p>
 
             <div class="note">
-              <b>1)</b> Спочатку зайдіть в акаунт (вкладка “Акаунт”).<br/>
-              <b>2)</b> Далі відкрийте “Проєкти” і переконайтеся, що ваші проєкти завантажилися.<br/>
-              <b>3)</b> На вкладці “Ринок” оберіть проєкт і натисніть “Завантажити”.
+              <b>1)</b> Відкрийте “Акаунт” і увійдіть.<br>
+              <b>2)</b> Перейдіть у “Проєкти” — ви побачите список своїх ніш.<br>
+              <b>3)</b> На “Ринку” оберіть проєкт і натисніть “Завантажити”.
             </div>
 
-            <div class="mt12 note warn">
-              Якщо бачите <span class="mono">401/403</span> — це значить, що бек чекає Bearer токен.
-              У нормальному режимі він підтягується автоматично після входу.
-            </div>
+            <div class="divider"></div>
 
-            <div class="mt12 note" style="background: rgba(0,184,148,.08); border-color: rgba(0,184,148,.18); color:#0a4f3f">
-              Далі тут можна додати “Розумні висновки” (mini-LLM) — але спочатку робимо користь: дані, графіки, звіти.
+            <h2>Якщо щось не завантажується</h2>
+            <p class="sub">Просте пояснення без технічних слів.</p>
+            <div id="friendlyAuthHint" class="note warn">
+              Якщо ви бачите повідомлення про відсутність доступу — просто увійдіть у акаунт. Після входу доступ вмикається автоматично.
             </div>
           </aside>
-
         </div>
       </section>
 
       <!-- QUERIES -->
       <section id="viewQueries" class="view">
-        <div class="card">
-          <h2>Запити</h2>
-          <p class="sub">Топ пошукових запитів та категорії. (Підключено до ваших analytics endpoints.)</p>
-
-          <div class="row">
-            <div class="field" style="max-width:220px">
-              <label>Ліміт</label>
-              <input id="inpQlimit" class="input" type="number" min="1" max="200" value="50"/>
-            </div>
-            <div class="field" style="max-width:260px">
-              <label>Режим</label>
-              <select id="selQmode">
-                <option value="with_category">Топ запитів з категоріями</option>
-                <option value="plain">Топ запитів</option>
-              </select>
-            </div>
-            <button id="btnLoadQueries" class="btn primary" type="button">Завантажити</button>
-          </div>
-
-          <div id="queriesMsg" class="mt12 note hide"></div>
-
-          <div class="divider"></div>
-
-          <div class="tableWrap">
-            <table>
-              <thead>
-                <tr id="qHeadRow">
-                  <th>Запит</th>
-                  <th>К-сть</th>
-                  <th>Категорія</th>
-                  <th>Впевненість</th>
-                  <th>Джерело</th>
-                </tr>
-              </thead>
-              <tbody id="queriesTbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- PROJECTS -->
-      <section id="viewProjects" class="view">
-        <div class="card">
-          <h2>Проєкти</h2>
-          <p class="sub">Список ваших OLX-проєктів. Тут не потрібно вводити ID руками.</p>
-
-          <div class="row">
-            <button id="btnReloadProjects" class="btn primary" type="button">Оновити список</button>
-          </div>
-
-          <div id="projectsMsg" class="mt12 note hide"></div>
-
-          <div class="divider"></div>
-
-          <div class="tableWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Назва</th>
-                  <th>Деталі</th>
-                </tr>
-              </thead>
-              <tbody id="projectsTbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ACCOUNT -->
-      <section id="viewAccount" class="view">
         <div class="grid">
-          <div class="authCard">
-            <div class=
+          <div class="card">
+            <div class="heroImg">
+              <div class="heroTxt">
+                <b>Запити — що шукають покупці</b>
+                <span>Зрозумійте попит: які запити популярні, які зростають, і що можна продавати прямо зараз.</span>
+              </div>
+              <div class="miniSteps">
+                <div class="step"><i>1</i> Оберіть режим</div>
+                <div class="step"><i>2</i> Завантажте</div>
+                <div class="step"><i>3</i> Висновок</div>
+              </div>
+            </div>
+
+            <h2 class="mt16" style="margin-top:16px">Запити</h2>
+            <p class="sub">Показуємо найпопулярніші пошуки користувачів. Це допомагає знайти нішу або уточнити товар.</p>
+
+            <div class="row">
+              <div class="field" style="max-width:220px">
+                <label>Скільки показати</label>
+                <input id="inpQlimit" class="input" type="number" min="5" max="200" value="50" />
+              </div>
+              <div class="field" style="max-width:320px">
+                <label>Режим</label>
+                <select id="selQmode">
+                  <option value="with_category">Популярні запити + категорії</option>
+                  <option value="plain">Популярні запити</option>
+                </select>
+              </div>
+              <button id="btnLoadQueries" class="btn primary" type="button">Завантажити</button>
+            </div>
+
+            <div id="queriesMsg" class="note hide" style="margin-top:12px"></div>
+
+            <div class="divider"></div>
+
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Запит</th>
+                    <th>Кількість</th>
+                    <th>Категорія</th>
+                    <th>Оцінка</th>
+                    <th>Джерело</th>
+                  </tr>
+                </thead>
+                <tbody id="queriesTbody"></tbody>
+              </table>
+            </div>
+
+            <div class="note" style="margin-top:12px">
+              <b>Як читати:</b> якщо запит популярний і має чітку категорію — це хороший сигнал попиту.
+            </div>
+          </div>
+
+          <aside class="card">
+            <h2>Підказка</h2>
+            <p class="sub">Що робити з цими даними.</p>
+            <div class="note">
+              Використовуйте запити як ідеї для проєктів: с
