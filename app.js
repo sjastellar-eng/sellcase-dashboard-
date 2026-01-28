@@ -282,50 +282,74 @@
   }
 
   // =========================
-  // Routing / Tabs
+  // Routing / Tabs (FIXED: no blank page, no form submit)
   // =========================
   function setActiveTab(tab) {
+    // If views are not found in current HTML — do NOT hide anything.
+    const existingViews = Object.values(views).filter(Boolean);
+    const canToggle = existingViews.length >= 2; // at least 2 views exist
+
+  if (canToggle) {
     Object.entries(views).forEach(([k, el]) => {
       if (!el) return;
       if (k === tab) show(el);
       else hide(el);
     });
-
-    Object.entries(tabButtons).forEach(([k, btn]) => {
-      if (!btn) return;
-      if (k === tab) btn.classList.add("active");
-      else btn.classList.remove("active");
-    });
-
-    localStorage.setItem(STORAGE.lastTab, tab);
+  } else {
+    // fallback: just scroll to anchor if exists
+    const anchor =
+      document.querySelector(`[data-view="${tab}"]`) ||
+      document.querySelector(`#view${tab[0].toUpperCase()}${tab.slice(1)}`) ||
+      document.querySelector(`#${tab}`);
+    if (anchor?.scrollIntoView) anchor.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function normalizeTab(hash) {
-    const h = (hash || "").replace("#", "").trim();
-    if (h === "market" || h === "queries" || h === "projects" || h === "account") return h;
-    return localStorage.getItem(STORAGE.lastTab) || "market";
-  }
+  Object.entries(tabButtons).forEach(([k, btn]) => {
+    if (!btn) return;
+    if (k === tab) btn.classList.add("active");
+    else btn.classList.remove("active");
+  });
 
-  function go(tab) {
+  localStorage.setItem(STORAGE.lastTab, tab);
+}
+
+function normalizeTab(hash) {
+  const h = (hash || "").replace("#", "").trim();
+  if (h === "market" || h === "queries" || h === "projects" || h === "account") return h;
+  return localStorage.getItem(STORAGE.lastTab) || "market";
+}
+
+function go(tab) {
+  // DO NOT rely only on hashchange (mobile sometimes weird after submit)
+  try {
     window.location.hash = `#${tab}`;
-    setActiveTab(tab);
-  }
+  } catch (_) {}
+  setActiveTab(tab);
+}
 
-  function bindTabs() {
-    Object.entries(tabButtons).forEach(([tab, btn]) => {
-      if (!btn) return;
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        go(tab);
-      });
+function bindTabs() {
+  Object.entries(tabButtons).forEach(([tab, btn]) => {
+    if (!btn) return;
+
+    // CRITICAL FIX: if this is a <button> inside a <form>, default type="submit" → page refresh → blank
+    if (btn.tagName === "BUTTON" && !btn.getAttribute("type")) {
+      btn.setAttribute("type", "button");
+    }
+
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      go(tab);
     });
+  });
 
-    window.addEventListener("hashchange", () => {
-      setActiveTab(normalizeTab(window.location.hash));
-    });
-
+  window.addEventListener("hashchange", () => {
     setActiveTab(normalizeTab(window.location.hash));
-  }
+  });
+
+  // initial
+  setActiveTab(normalizeTab(window.location.hash));
+}
 
   // =========================
   // Server status
