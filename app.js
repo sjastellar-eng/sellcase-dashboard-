@@ -1,250 +1,114 @@
-/* SellCase Dashboard (Light SaaS UI)
- * - Views: market/queries/projects/account
+/* SellCase Dashboard – app.js (clean, working)
+ * - Single API base in one place
+ * - Hash navigation (#market/#queries/#projects/#account)
  * - Auth: /auth/register (JSON), /auth/login (x-www-form-urlencoded), /auth/me (Bearer)
- * - OLX:  GET /olx/projects/
- *         GET /olx/projects/{id}/market/history?limit=&offset=&only_valid=
- * - Queries: GET /analytics/top-search-queries-with-category
- *            GET /analytics/top-search-queries
+ * - Projects + Market + Queries calls
  */
 
-(function () {
-  const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+(() => {
+  // -----------------------------
+  // Config
+  // -----------------------------
+  const DEFAULT_API_BASE = "https://sellcase-backend.onrender.com";
 
-  // ----------------------------
-  // Storage keys
-  // ----------------------------
-  const S = {
+  const LS = {
     token: "sellcase_token",
     apiBase: "sellcase_api_base",
     lastProjectId: "sellcase_last_project_id",
-    lastMetric: "sellcase_chart_metric",
-    marketOffset: "sellcase_market_offset",
+    lastMetric: "sellcase_last_metric",
   };
 
-  // ----------------------------
-  // Elements (Top)
-  // ----------------------------
-  const apiDot = $("#apiDot");
-  const apiText = $("#apiText");
-
-  const tabs = $$(".tab");
-  const views = {
-    market: $("#viewMarket"),
-    queries: $("#viewQueries"),
-    projects: $("#viewProjects"),
-    account: $("#viewAccount"),
-  };
-
-  // ----------------------------
-  // Market elements
-  // ----------------------------
-  const selProject = $("#selProject");
-  const inpLimit = $("#inpLimit");
-  const inpOffset = $("#inpOffset");
-  const chkOnlyValid = $("#chkOnlyValid");
-
-  const btnLoadMarket = $("#btnLoadMarket");
-  const btnPrev = $("#btnPrev");
-  const btnNext = $("#btnNext");
-  const marketMsg = $("#marketMsg");
-
-  const kpiMedian = $("#kpiMedian");
-  const kpiMedianSub = $("#kpiMedianSub");
-  const kpiDeltaMedian = $("#kpiDeltaMedian");
-  const kpiDeltaMedianSub = $("#kpiDeltaMedianSub");
-  const kpiSpread = $("#kpiSpread");
-  const kpiSpreadSub = $("#kpiSpreadSub");
-  const kpiItems = $("#kpiItems");
-  const kpiItemsSub = $("#kpiItemsSub");
-
-  const marketTbody = $("#marketTbody");
-  const chartCanvas = $("#chart");
-
-  const btnMetricMedian = $("#btnMetricMedian");
-  const btnMetricP25 = $("#btnMetricP25");
-  const btnMetricP75 = $("#btnMetricP75");
-
-  const inpApiBase = $("#inpApiBase");
-  const inpToken = $("#inpToken");
-
-  // ----------------------------
-  // Queries elements
-  // ----------------------------
-  const selQueryMode = $("#selQueryMode");
-  const inpQueriesLimit = $("#inpQueriesLimit");
-  const btnLoadQueries = $("#btnLoadQueries");
-  const queriesTbody = $("#queriesTbody");
-  const queriesMsg = $("#queriesMsg");
-
-  // ----------------------------
-  // Projects elements
-  // ----------------------------
-  const btnReloadProjects = $("#btnReloadProjects");
-  const projectsTbody = $("#projectsTbody");
-  const projectsMsg = $("#projectsMsg");
-  const inpProjectName = $("#inpProjectName");
-  const btnCreateProject = $("#btnCreateProject");
-
-  // ----------------------------
-  // Account elements
-  // ----------------------------
-  const loginEmail = $("#loginEmail");
-  const loginPass = $("#loginPass");
-  const btnLogin = $("#btnLogin");
-
-  const regName = $("#regName");
-  const regEmail = $("#regEmail");
-  const regPass = $("#regPass");
-  const btnRegister = $("#btnRegister");
-
-  const meLine = $("#meLine");
-  const btnLogout = $("#btnLogout");
-  const accountMsg = $("#accountMsg");
-
-  // ----------------------------
-  // State
-  // ----------------------------
-  let state = {
-    token: localStorage.getItem(S.token) || "",
-    apiBase: localStorage.getItem(S.apiBase) || "",
-    projects: [],
-    marketRows: [],
-    metric: localStorage.getItem(S.lastMetric) || "median",
-    offset: Number(localStorage.getItem(S.marketOffset) || "0"),
-    lastHealthOk: false,
-  };
-
-  // ----------------------------
-  // Helpers
-  // ----------------------------
-  function setApiStatus(ok, text) {
-    apiDot.classList.remove("ok", "bad");
-    apiDot.classList.add(ok ? "ok" : "bad");
-    apiText.textContent = text;
-  }
-
-  function setMsg(el, text, isError = false) {
-    if (!el) return;
-    el.classList.remove("hide");
-    el.textContent = text;
-    el.style.borderColor = isError ? "rgba(226,59,59,.25)" : "rgba(47,107,255,.25)";
-    el.style.background = isError
-      ? "linear-gradient(180deg, rgba(226,59,59,.07), rgba(226,59,59,.02))"
-      : "linear-gradient(180deg, rgba(47,107,255,.06), rgba(47,107,255,.02))";
-  }
-
-  function clearMsg(el) {
-    if (!el) return;
-    el.classList.add("hide");
-    el.textContent = "";
-  }
-
-  function fmtMoney(v) {
-    if (!Number.isFinite(v)) return "—";
-    // UA formatting, keep it simple
-    try {
-      return new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 0 }).format(v) + " ₴";
-    } catch {
-      return String(Math.round(v)) + " ₴";
-    }
-  }
-
-  function fmtNum(v) {
-    if (!Number.isFinite(v)) return "—";
-    try {
-      return new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 0 }).format(v);
-    } catch {
-      return String(Math.round(v));
-    }
-  }
-
-  function safeStr(v) {
-    return (v === null || v === undefined) ? "" : String(v);
-  }
-
-  function pickFirst(obj, keys, def = undefined) {
-    for (const k of keys) {
-      if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
-    }
-    return def;
-  }
-
-  function metricValue(row, metric) {
-    if (!row) return NaN;
-    if (metric === "median") return Number(pickFirst(row, ["median", "med", "p50"], NaN));
-    if (metric === "p25") return Number(pickFirst(row, ["p25", "q25"], NaN));
-    if (metric === "p75") return Number(pickFirst(row, ["p75", "q75"], NaN));
-    return NaN;
-  }
-
-  function takenAt(row) {
-    return pickFirst(row, ["taken_at", "takenAt", "ts", "created_at", "createdAt"], "");
-  }
-
-  function itemsCount(row) {
-    return Number(pickFirst(row, ["items_count", "items", "count"], NaN));
-  }
-
-  function calcQuantile(sortedValues, q) {
-    if (!sortedValues.length) return NaN;
-    const pos = (sortedValues.length - 1) * q;
-    const base = Math.floor(pos);
-    const rest = pos - base;
-    const a = sortedValues[base];
-    const b = sortedValues[Math.min(base + 1, sortedValues.length - 1)];
-    return a + rest * (b - a);
-  }
-
-  function setToken(t) {
-    state.token = t || "";
-    if (state.token) localStorage.setItem(S.token, state.token);
-    else localStorage.removeItem(S.token);
-    if (inpToken) inpToken.value = state.token ? `Bearer ${state.token}` : "";
-  }
+  function $(sel) { return document.querySelector(sel); }
+  function $all(sel) { return Array.from(document.querySelectorAll(sel)); }
 
   function getApiBase() {
-    // priority: input -> localStorage -> same origin
-    const fromInput = inpApiBase && inpApiBase.value ? inpApiBase.value.trim() : "";
-    const fromLS = state.apiBase || "";
-    const base = fromInput || fromLS || window.location.origin;
-    return base.replace(/\/+$/, "");
+    // allow override by query param ?api=
+    try {
+      const url = new URL(window.location.href);
+      const q = url.searchParams.get("api");
+      if (q && q.trim()) {
+        localStorage.setItem(LS.apiBase, q.trim());
+        return q.trim();
+      }
+    } catch (_) {}
+
+    const saved = (localStorage.getItem(LS.apiBase) || "").trim();
+    return saved || DEFAULT_API_BASE;
   }
 
   function setApiBase(v) {
-    state.apiBase = (v || "").trim().replace(/\/+$/, "");
-    if (state.apiBase) localStorage.setItem(S.apiBase, state.apiBase);
-    else localStorage.removeItem(S.apiBase);
+    const val = (v || "").trim();
+    if (!val) {
+      localStorage.removeItem(LS.apiBase);
+      return DEFAULT_API_BASE;
+    }
+    localStorage.setItem(LS.apiBase, val);
+    return val;
   }
 
-  async function apiFetch(path, opts = {}) {
-    const base = getApiBase();
-    const url = path.startsWith("http") ? path : `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+  function getToken() {
+    return (localStorage.getItem(LS.token) || "").trim();
+  }
 
-    const headers = new Headers(opts.headers || {});
-    headers.set("Accept", "application/json");
+  function setToken(token) {
+    if (token) localStorage.setItem(LS.token, token);
+    else localStorage.removeItem(LS.token);
+  }
 
-    // If body is plain object and not FormData, JSON it
-    let body = opts.body;
-    if (body && typeof body === "object" && !(body instanceof FormData) && !(body instanceof URLSearchParams)) {
-      headers.set("Content-Type", "application/json");
-      body = JSON.stringify(body);
+  function fmtMoney(v) {
+    if (v === null || v === undefined || v === "") return "—";
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "—";
+    // UAH formatting (simple)
+    return n.toLocaleString("uk-UA", { maximumFractionDigits: 0 }) + " ₴";
+  }
+
+  function setText(el, text) {
+    if (!el) return;
+    el.textContent = text;
+  }
+
+  function show(el) { if (el) el.classList.remove("hide"); }
+  function hide(el) { if (el) el.classList.add("hide"); }
+
+  function setNote(el, type, msg) {
+    // expects "note" element with optional type classes
+    if (!el) return;
+    el.classList.remove("hide");
+    el.classList.remove("ok", "warn", "danger");
+    if (type) el.classList.add(type);
+    el.textContent = msg || "";
+  }
+
+  function clearNote(el) {
+    if (!el) return;
+    el.classList.add("hide");
+    el.textContent = "";
+    el.classList.remove("ok", "warn", "danger");
+  }
+
+  // -----------------------------
+  // API helper
+  // -----------------------------
+  async function apiFetch(path, { method = "GET", headers = {}, body = null, auth = true } = {}) {
+    const base = getApiBase().replace(/\/+$/, "");
+    const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+
+    const h = new Headers(headers);
+    if (auth) {
+      const t = getToken();
+      if (t) h.set("Authorization", `Bearer ${t}`);
     }
 
-    // Auth
-    const token = state.token;
-    if (token && !headers.has("Authorization")) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
+    const res = await fetch(url, { method, headers: h, body });
 
-    const res = await fetch(url, { ...opts, headers, body });
-
+    // Parse JSON if possible
     let data = null;
-    const ct = res.headers.get("content-type") || "";
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
     if (ct.includes("application/json")) {
-      try { data = await res.json(); } catch { data = null; }
+      try { data = await res.json(); } catch (_) {}
     } else {
-      try { data = await res.text(); } catch { data = null; }
+      try { data = await res.text(); } catch (_) {}
     }
 
     if (!res.ok) {
@@ -253,440 +117,501 @@
       err.data = data;
       throw err;
     }
+
     return data;
   }
 
-  function humanApiError(e) {
-    if (!e) return "Сталася помилка.";
-    const st = e.status;
+  function humanApiError(err) {
+    const status = err?.status;
+    const data = err?.data;
 
-    // Friendly auth errors
-    if (st === 401 || st === 403) {
-      return "Потрібен вхід у акаунт. Перейдіть у «Акаунт» і увійдіть.";
+    if (status === 401 || status === 403) {
+      return "Немає доступу. Увійдіть у акаунт ще раз.";
     }
-    if (st === 429) return "Занадто багато запитів. Спробуйте трохи пізніше.";
-    if (st >= 500) return "Сервер тимчасово недоступний. Спробуйте пізніше.";
 
-    // Try to show backend message
-    const msg =
-      (e.data && typeof e.data === "object" && (e.data.detail || e.data.message)) ||
-      (typeof e.data === "string" ? e.data : "");
-    return msg ? `Помилка: ${msg}` : "Помилка запиту. Перевірте дані.";
+    // FastAPI validation errors
+    if (data && typeof data === "object" && Array.isArray(data.detail)) {
+      const first = data.detail[0];
+      if (first?.msg) return `Помилка: ${first.msg}`;
+      return "Помилка валідації даних.";
+    }
+
+    if (data && typeof data === "object" && data.detail) {
+      return String(data.detail);
+    }
+
+    if (typeof data === "string" && data.trim()) return data;
+
+    return "Помилка запиту. Перевірте дані та спробуйте ще раз.";
   }
 
-  // ----------------------------
-  // Views / Tabs
-  // ----------------------------
-  function switchView(name) {
-    Object.entries(views).forEach(([k, el]) => {
-      if (!el) return;
-      el.classList.toggle("active", k === name);
-    });
-    tabs.forEach((t) => {
-      const sel = t.getAttribute("data-view") === name;
-      t.setAttribute("aria-selected", sel ? "true" : "false");
-    });
+  // -----------------------------
+  // UI elements (optional – code won't crash if not found)
+  // -----------------------------
+  const el = {
+    // status
+    serverStatus: $("#serverStatus"),
 
-    // small convenience: when entering Projects/Market, refresh if needed
-    if (name === "projects") {
-      // do nothing auto to avoid spamming, but we can show stored
-    }
-  }
+    // nav
+    navMarket: $("#navMarket"),
+    navQueries: $("#navQueries"),
+    navProjects: $("#navProjects"),
+    navAccount: $("#navAccount"),
 
-  function bindTabs() {
-    tabs.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const v = btn.getAttribute("data-view");
-        if (v) switchView(v);
-      });
-    });
-  }
+    // views
+    viewMarket: $("#viewMarket"),
+    viewQueries: $("#viewQueries"),
+    viewProjects: $("#viewProjects"),
+    viewAccount: $("#viewAccount"),
 
-  // ----------------------------
-  // Health
-  // ----------------------------
-  async function checkHealth() {
-    try {
-      const data = await apiFetch("/health", { method: "GET" });
-      // If backend returns something, just accept
-      state.lastHealthOk = true;
-      setApiStatus(true, "Сервер онлайн");
-      return data;
-    } catch (e) {
-      state.lastHealthOk = false;
-      setApiStatus(false, "Сервер недоступний");
-      return null;
-    }
-  }
+    // account/auth
+    loginEmail: $("#loginEmail"),
+    loginPassword: $("#loginPassword"),
+    btnLogin: $("#btnLogin"),
+    loginMsg: $("#loginMsg"),
 
-  // ----------------------------
-  // Auth
-  // ----------------------------
-  async function loadMe() {
-    if (!state.token) {
-      meLine.textContent = "Не виконано вхід.";
-      return null;
-    }
-    try {
-      const me = await apiFetch("/auth/me", { method: "GET" });
-      const email = pickFirst(me, ["email", "username"], "");
-      const name = pickFirst(me, ["full_name", "fullName", "name"], "");
-      meLine.textContent = [name, email].filter(Boolean).join(" — ") || "Вхід виконано.";
-      clearMsg(accountMsg);
-      return me;
-    } catch (e) {
-      meLine.textContent = "Не виконано вхід.";
-      setToken("");
-      setMsg(accountMsg, humanApiError(e), true);
-      return null;
-    }
-  }
+    regName: $("#regName"),
+    regEmail: $("#regEmail"),
+    regPassword: $("#regPassword"),
+    btnRegister: $("#btnRegister"),
+    regMsg: $("#regMsg"),
 
-  async function register() {
-    clearMsg(accountMsg);
-    const payload = {
-      email: (regEmail.value || "").trim(),
-      full_name: (regName.value || "").trim(),
-      password: regPass.value || "",
+    meBox: $("#meBox"),
+    meMsg: $("#meMsg"),
+    btnLogout: $("#btnLogout"),
+
+    // api base setting
+    apiBaseInput: $("#apiBase"),
+    btnSaveApiBase: $("#btnSaveApiBase"),
+
+    // projects
+    btnLoadProjects: $("#btnLoadProjects"),
+    inpProjectName: $("#inpProjectName"),
+    btnCreateProject: $("#btnCreateProject"),
+    projectsTbody: $("#projectsTbody"),
+    projectsMsg: $("#projectsMsg"),
+
+    // market
+    selProject: $("#selProject"),
+    inpQLimit: $("#inpQLimit"),
+    inpOffset: $("#inpOffset"),
+    chkOnlyValid: $("#chkOnlyValid"),
+    btnLoadMarket: $("#btnLoadMarket"),
+    btnPrev: $("#btnPrev"),
+    btnNext: $("#btnNext"),
+    marketMsg: $("#marketMsg"),
+    marketTbody: $("#marketTbody"),
+
+    kpiTypical: $("#kpiTypical"),
+    kpiDelta: $("#kpiDelta"),
+    kpiRange: $("#kpiRange"),
+    kpiCount: $("#kpiCount"),
+
+    chart: $("#chart"),
+
+    // metric toggles
+    metricBtns: $all("[data-metric]"),
+
+    // queries
+    selQMode: $("#selQMode"),
+    btnLoadQueries: $("#btnLoadQueries"),
+    queriesTbody: $("#queriesTbody"),
+    queriesMsg: $("#queriesMsg"),
+  };
+
+  // -----------------------------
+  // Navigation
+  // -----------------------------
+  const routes = ["market", "queries", "projects", "account"];
+
+  function setActiveNav(route) {
+    const map = {
+      market: el.navMarket,
+      queries: el.navQueries,
+      projects: el.navProjects,
+      account: el.navAccount,
     };
-    if (!payload.email || !payload.password) {
-      setMsg(accountMsg, "Вкажіть email та пароль для реєстрації.", true);
-      return;
-    }
+    Object.values(map).forEach(x => x?.classList?.remove("active"));
+    map[route]?.classList?.add("active");
+  }
+
+  function showRoute(route) {
+    const map = {
+      market: el.viewMarket,
+      queries: el.viewQueries,
+      projects: el.viewProjects,
+      account: el.viewAccount,
+    };
+    Object.values(map).forEach(v => hide(v));
+    show(map[route] || el.viewMarket);
+    setActiveNav(route);
+  }
+
+  function getRouteFromHash() {
+    const h = (window.location.hash || "").replace("#", "").trim();
+    return routes.includes(h) ? h : "market";
+  }
+
+  function go(route) {
+    const r = routes.includes(route) ? route : "market";
+    if (window.location.hash !== `#${r}`) window.location.hash = `#${r}`;
+    showRoute(r);
+  }
+
+  function bindNav() {
+    el.navMarket?.addEventListener("click", () => go("market"));
+    el.navQueries?.addEventListener("click", () => go("queries"));
+    el.navProjects?.addEventListener("click", () => go("projects"));
+    el.navAccount?.addEventListener("click", () => go("account"));
+
+    window.addEventListener("hashchange", () => {
+      showRoute(getRouteFromHash());
+    });
+  }
+
+  // -----------------------------
+  // Server status
+  // -----------------------------
+  async function pingServer() {
+    if (!el.serverStatus) return;
     try {
-      await apiFetch("/auth/register", { method: "POST", body: payload });
-      setMsg(accountMsg, "Акаунт створено. Тепер увійдіть (email + пароль).");
-      // auto-fill login
-      loginEmail.value = payload.email;
-      loginPass.value = payload.password;
-      switchView("account");
-    } catch (e) {
-      setMsg(accountMsg, humanApiError(e), true);
+      await apiFetch("/health", { auth: false });
+      el.serverStatus.classList.remove("bad");
+      el.serverStatus.classList.add("ok");
+      setText(el.serverStatus, "Сервер онлайн");
+    } catch (_) {
+      el.serverStatus.classList.remove("ok");
+      el.serverStatus.classList.add("bad");
+      setText(el.serverStatus, "Сервер недоступний");
     }
   }
 
-  async function login() {
-    clearMsg(accountMsg);
+  // -----------------------------
+  // Auth / Me
+  // -----------------------------
+  async function loadMe({ silent = false } = {}) {
+    clearNote(el.meMsg);
+    if (!getToken()) {
+      setText(el.meBox, "Не виконано вхід.");
+      return null;
+    }
 
-    const username = (loginEmail.value || "").trim();
-    const password = loginPass.value || "";
-    if (!username || !password) {
-      setMsg(accountMsg, "Вкажіть email та пароль для входу.", true);
+    try {
+      const me = await apiFetch("/auth/me", { method: "GET", auth: true });
+      const email = me?.email || "—";
+      const name = me?.full_name || "";
+      setText(el.meBox, name ? `${name} (${email})` : email);
+      return me;
+    } catch (err) {
+      // token invalid -> logout
+      if (err?.status === 401 || err?.status === 403) {
+        setToken("");
+        setText(el.meBox, "Не виконано вхід.");
+        if (!silent) setNote(el.meMsg, "warn", "Сесія закінчилась. Увійдіть ще раз.");
+        return null;
+      }
+      if (!silent) setNote(el.meMsg, "danger", humanApiError(err));
+      return null;
+    }
+  }
+
+  async function doLogin() {
+    clearNote(el.loginMsg);
+
+    const email = (el.loginEmail?.value || "").trim();
+    const password = (el.loginPassword?.value || "").trim();
+
+    if (!email || !password) {
+      setNote(el.loginMsg, "warn", "Вкажіть email та пароль.");
       return;
     }
 
     try {
       const form = new URLSearchParams();
-      form.set("username", username);
+      form.set("grant_type", "password");
+      form.set("username", email);
       form.set("password", password);
-      // FastAPI OAuth2PasswordRequestForm expects x-www-form-urlencoded
-      const base = getApiBase();
-      const url = `${base}/auth/login`;
-      const res = await fetch(url, {
+
+      const data = await apiFetch("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+        auth: false,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: form.toString(),
       });
 
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        const err = new Error(`HTTP ${res.status}`);
-        err.status = res.status;
-        err.data = data;
-        throw err;
-      }
-
-      const token = pickFirst(data, ["access_token", "token"], "");
+      const token = data?.access_token;
       if (!token) throw new Error("No token in response");
 
       setToken(token);
-      setMsg(accountMsg, "Вхід виконано ✅");
-      await loadMe();
-      await loadProjects(true); // populate select right away
-      switchView("market");
-    } catch (e) {
-      setMsg(accountMsg, humanApiError(e), true);
+
+      setNote(el.loginMsg, "ok", "Вхід виконано успішно.");
+      await loadMe({ silent: true });
+
+      // after login: refresh projects list everywhere
+      await loadProjects({ silent: true });
+      await fillProjectsDropdown();
+
+    } catch (err) {
+      setNote(el.loginMsg, "danger", humanApiError(err));
     }
   }
 
-  function logout() {
-    setToken("");
-    meLine.textContent = "Не виконано вхід.";
-    setMsg(accountMsg, "Ви вийшли з акаунту.");
-  }
+  async function doRegister() {
+    clearNote(el.regMsg);
 
-  // ----------------------------
-  // Projects
-  // ----------------------------
-  function renderProjectsTable(rows) {
-    projectsTbody.innerHTML = "";
-    if (!rows || !rows.length) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="4" class="muted">Проєктів поки немає.</td>`;
-      projectsTbody.appendChild(tr);
+    const full_name = (el.regName?.value || "").trim();
+    const email = (el.regEmail?.value || "").trim();
+    const password = (el.regPassword?.value || "").trim();
+
+    if (!email || !password || !full_name) {
+      setNote(el.regMsg, "warn", "Заповніть ім’я, email та пароль.");
+      return;
+    }
+    if (password.length < 8) {
+      setNote(el.regMsg, "warn", "Пароль має бути мінімум 8 символів.");
       return;
     }
 
-    rows.forEach((p) => {
-      const id = pickFirst(p, ["id", "project_id"], "");
-      const name = pickFirst(p, ["name", "title"], "—");
-      const isActive = pickFirst(p, ["is_active", "active"], true);
-      const created = pickFirst(p, ["created_at", "createdAt"], "");
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><b>${safeStr(id)}</b></td>
-        <td>${safeStr(name)}</td>
-        <td>${isActive ? "Активний" : "Неактивний"}</td>
-        <td class="muted">${safeStr(created).slice(0, 19).replace("T", " ")}</td>
-      `;
-      projectsTbody.appendChild(tr);
-    });
-  }
-
-  function renderProjectsSelect(rows) {
-    const current = localStorage.getItem(S.lastProjectId) || "";
-    selProject.innerHTML = `<option value="">— Оберіть проєкт —</option>`;
-
-    (rows || []).forEach((p) => {
-      const id = pickFirst(p, ["id", "project_id"], "");
-      const name = pickFirst(p, ["name", "title"], `Проєкт ${id}`);
-      const opt = document.createElement("option");
-      opt.value = String(id);
-      opt.textContent = `${name} (ID ${id})`;
-      selProject.appendChild(opt);
-    });
-
-    // Restore last selected if exists
-    if (current) selProject.value = current;
-  }
-
-  async function loadProjects(silent = false) {
-    if (!silent) projectsMsg.textContent = "Завантаження…";
     try {
-      const list = await apiFetch("/olx/projects/", { method: "GET" });
-      // backend may return list or {items:[]}
-      const rows = Array.isArray(list) ? list : (list && (list.items || list.results)) || [];
-      state.projects = rows;
+      await apiFetch("/auth/register", {
+        method: "POST",
+        auth: false,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, full_name, password }),
+      });
 
-      renderProjectsSelect(rows);
-      renderProjectsTable(rows);
+      // success: show message, clear only registration fields
+      setNote(el.regMsg, "ok", "Акаунт створено. Тепер увійдіть зі своїм email та паролем.");
+      if (el.regName) el.regName.value = "";
+      if (el.regEmail) el.regEmail.value = "";
+      if (el.regPassword) el.regPassword.value = "";
 
-      if (!silent) projectsMsg.textContent = `Готово: ${rows.length}`;
-      return rows;
-    } catch (e) {
-      if (!silent) projectsMsg.textContent = "Не вдалося завантажити.";
-      // also show in market message
-      marketMsg.textContent = humanApiError(e);
+    } catch (err) {
+      setNote(el.regMsg, "danger", humanApiError(err));
+    }
+  }
+
+  function doLogout() {
+    setToken("");
+    setText(el.meBox, "Не виконано вхід.");
+    setNote(el.meMsg, "ok", "Ви вийшли з акаунту.");
+  }
+
+  function bindAuth() {
+    el.btnLogin?.addEventListener("click", (e) => { e.preventDefault(); doLogin(); });
+    el.btnRegister?.addEventListener("click", (e) => { e.preventDefault(); doRegister(); });
+    el.btnLogout?.addEventListener("click", (e) => { e.preventDefault(); doLogout(); });
+
+    // API base setting (optional)
+    if (el.apiBaseInput) el.apiBaseInput.value = getApiBase();
+    el.btnSaveApiBase?.addEventListener("click", (e) => {
+      e.preventDefault();
+      const v = setApiBase(el.apiBaseInput?.value || "");
+      setNote(el.meMsg, "ok", `API збережено: ${v}`);
+      pingServer();
+    });
+  }
+
+  // -----------------------------
+  // Projects
+  // -----------------------------
+  let cacheProjects = [];
+
+  async function loadProjects({ silent = false } = {}) {
+    if (!silent) clearNote(el.projectsMsg);
+    if (!getToken()) {
+      if (!silent) setNote(el.projectsMsg, "warn", "Увійдіть, щоб бачити проєкти.");
+      return [];
+    }
+    try {
+      const items = await apiFetch("/olx/projects/", { method: "GET", auth: true });
+      cacheProjects = Array.isArray(items) ? items : (items?.items || []);
+      if (!Array.isArray(cacheProjects)) cacheProjects = [];
+
+      renderProjectsTable(cacheProjects);
+      return cacheProjects;
+    } catch (err) {
+      if (!silent) setNote(el.projectsMsg, "danger", humanApiError(err));
       return [];
     }
   }
 
-  async function createProject() {
-    projectsMsg.textContent = "";
-    const name = (inpProjectName.value || "").trim();
-    if (!name) {
-      projectsMsg.textContent = "Вкажіть назву проєкту.";
-      return;
-    }
-    try {
-      await apiFetch("/olx/projects/", { method: "POST", body: { name } });
-      projectsMsg.textContent = "Проєкт створено ✅";
-      inpProjectName.value = "";
-      await loadProjects(true);
-      switchView("projects");
-    } catch (e) {
-      projectsMsg.textContent = humanApiError(e);
-    }
-  }
+  function renderProjectsTable(projects) {
+    if (!el.projectsTbody) return;
+    el.projectsTbody.innerHTML = "";
 
-  // ----------------------------
-  // Market
-  // ----------------------------
-  function resetMarketUI() {
-    kpiMedian.textContent = "—";
-    kpiDeltaMedian.textContent = "—";
-    kpiSpread.textContent = "—";
-    kpiItems.textContent = "—";
-
-    kpiMedianSub.textContent = "Ціна, яка найкраще описує ринок.";
-    kpiDeltaMedianSub.textContent = "Порівняння з попереднім періодом.";
-    kpiSpreadSub.textContent = "Наскільки широкий “коридор” цін.";
-    kpiItemsSub.textContent = "Скільки пропозицій у вибірці.";
-
-    marketTbody.innerHTML = "";
-    state.marketRows = [];
-    drawChart([], state.metric);
-  }
-
-  function renderMarketTable(rows) {
-    marketTbody.innerHTML = "";
-    if (!rows || !rows.length) {
+    if (!projects || projects.length === 0) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="5" class="muted">Немає даних. Спробуйте інший проєкт або змініть “Зсув”.</td>`;
-      marketTbody.appendChild(tr);
+      tr.innerHTML = `<td colspan="4" style="padding:12px;color:#5b667a;">Поки що немає проєктів.</td>`;
+      el.projectsTbody.appendChild(tr);
       return;
     }
-    rows.forEach((r) => {
-      const t = safeStr(takenAt(r)).slice(0, 19).replace("T", " ");
-      const items = itemsCount(r);
-      const med = metricValue(r, "median");
-      const p25 = metricValue(r, "p25");
-      const p75 = metricValue(r, "p75");
+
+    for (const p of projects) {
+      const id = p?.id ?? p?.project_id ?? "";
+      const name = p?.name ?? p?.title ?? "Проєкт";
+      const created = p?.created_at ? String(p.created_at).slice(0, 19).replace("T", " ") : "—";
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${t || "—"}</td>
-        <td>${Number.isFinite(items) ? fmtNum(items) : "—"}</td>
-        <td><b>${fmtMoney(med)}</b></td>
-        <td>${fmtMoney(p25)}</td>
-        <td>${fmtMoney(p75)}</td>
+        <td>${name}</td>
+        <td>${id}</td>
+        <td>${created}</td>
+        <td><button class="btn small" data-pick="${id}">Обрати</button></td>
       `;
-      marketTbody.appendChild(tr);
+      el.projectsTbody.appendChild(tr);
+    }
+
+    // pick buttons
+    $all("[data-pick]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-pick");
+        if (!id) return;
+        localStorage.setItem(LS.lastProjectId, String(id));
+        await fillProjectsDropdown();
+        go("market");
+      });
     });
   }
 
-  function computeKpis(rows) {
-    // Use last row for "last median" and items count if present.
-    if (!rows || !rows.length) {
-      return {
-        lastMedian: NaN,
-        deltaMedian: NaN,
-        spread: NaN,
-        items: NaN,
-      };
+  async function createProject() {
+    clearNote(el.projectsMsg);
+    const name = (el.inpProjectName?.value || "").trim();
+    if (!name) {
+      setNote(el.projectsMsg, "warn", "Вкажіть назву проєкту.");
+      return;
     }
-
-    // newest likely first or last depending on backend; we can sort by taken_at string
-    const sorted = [...rows].sort((a, b) => safeStr(takenAt(a)).localeCompare(safeStr(takenAt(b))));
-    const last = sorted[sorted.length - 1];
-    const prev = sorted.length >= 2 ? sorted[sorted.length - 2] : null;
-
-    const lastMed = metricValue(last, "median");
-    const prevMed = prev ? metricValue(prev, "median") : NaN;
-
-    // compute spread from last row's p75 - p25
-    const lastP25 = metricValue(last, "p25");
-    const lastP75 = metricValue(last, "p75");
-    const spread = (Number.isFinite(lastP75) && Number.isFinite(lastP25)) ? (lastP75 - lastP25) : NaN;
-
-    const items = itemsCount(last);
-
-    let delta = NaN;
-    if (Number.isFinite(lastMed) && Number.isFinite(prevMed)) delta = lastMed - prevMed;
-
-    return {
-      lastMedian: lastMed,
-      deltaMedian: delta,
-      spread,
-      items,
-    };
-  }
-
-  function applyKpis(k) {
-    kpiMedian.textContent = fmtMoney(k.lastMedian);
-    kpiDeltaMedian.textContent = Number.isFinite(k.deltaMedian)
-      ? ((k.deltaMedian >= 0 ? "+" : "") + fmtMoney(k.deltaMedian).replace(" ₴", "") + " ₴")
-      : "—";
-    kpiSpread.textContent = fmtMoney(k.spread);
-    kpiItems.textContent = Number.isFinite(k.items) ? fmtNum(k.items) : "—";
-
-    if (!Number.isFinite(k.lastMedian)) {
-      kpiMedianSub.textContent = "Немає достатньо даних.";
-      kpiDeltaMedianSub.textContent = "—";
-      kpiSpreadSub.textContent = "—";
-      kpiItemsSub.textContent = "—";
-    } else {
-      kpiMedianSub.textContent = "Половина оголошень дешевші, половина — дорожчі.";
-      kpiDeltaMedianSub.textContent = "Різниця з попереднім зрізом.";
-      kpiSpreadSub.textContent = "Ціновий “коридор” на ринку.";
-      kpiItemsSub.textContent = "Кількість оголошень у зрізі.";
-    }
-  }
-
-  async function loadMarket() {
-    clearMsg(queriesMsg);
-    marketMsg.textContent = "Завантаження…";
-
-    const projectId = selProject.value;
-    if (!projectId) {
-      marketMsg.textContent = "Оберіть проєкт.";
+    if (!getToken()) {
+      setNote(el.projectsMsg, "warn", "Увійдіть, щоб створювати проєкти.");
       return;
     }
 
-    localStorage.setItem(S.lastProjectId, String(projectId));
-
-    const limit = Math.max(5, Number(inpLimit.value || 30));
-    const offset = Math.max(0, Number(inpOffset.value || 0));
-    state.offset = offset;
-    localStorage.setItem(S.marketOffset, String(offset));
-
-    const onlyValid = chkOnlyValid.checked ? "true" : "false";
-
     try {
-      const qs = new URLSearchParams({
-        limit: String(limit),
-        offset: String(offset),
-        only_valid: onlyValid,
+      await apiFetch("/olx/projects/", {
+        method: "POST",
+        auth: true,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
       });
 
-      const data = await apiFetch(`/olx/projects/${encodeURIComponent(projectId)}/market/history?${qs.toString()}`, {
-        method: "GET",
-      });
+      setNote(el.projectsMsg, "ok", "Проєкт створено.");
+      if (el.inpProjectName) el.inpProjectName.value = "";
 
-      const rows = Array.isArray(data) ? data : (data && (data.items || data.results || data.rows)) || [];
-      state.marketRows = rows;
-
-      renderMarketTable(rows);
-      applyKpis(computeKpis(rows));
-      drawChart(rows, state.metric);
-
-      marketMsg.textContent = rows.length ? `Готово: ${rows.length} точок` : "Немає даних для цього зсуву.";
-    } catch (e) {
-      resetMarketUI();
-      marketMsg.textContent = humanApiError(e);
+      await loadProjects({ silent: true });
+      await fillProjectsDropdown();
+    } catch (err) {
+      setNote(el.projectsMsg, "danger", humanApiError(err));
     }
   }
 
-  function prevMarket() {
-    const cur = Math.max(0, Number(inpOffset.value || 0));
-    const next = Math.max(0, cur + Math.max(1, Number(inpLimit.value || 30)));
-    inpOffset.value = String(next);
-    loadMarket();
+  function bindProjects() {
+    el.btnLoadProjects?.addEventListener("click", (e) => { e.preventDefault(); loadProjects(); });
+    el.btnCreateProject?.addEventListener("click", (e) => { e.preventDefault(); createProject(); });
   }
 
-  function nextMarket() {
-    const cur = Math.max(0, Number(inpOffset.value || 0));
-    const step = Math.max(1, Number(inpLimit.value || 30));
-    const next = Math.max(0, cur - step);
-    inpOffset.value = String(next);
-    loadMarket();
+  async function fillProjectsDropdown() {
+    if (!el.selProject) return;
+
+    // ensure cache
+    if (cacheProjects.length === 0 && getToken()) {
+      await loadProjects({ silent: true });
+    }
+
+    const lastId = (localStorage.getItem(LS.lastProjectId) || "").trim();
+
+    el.selProject.innerHTML = "";
+    const opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = "Оберіть проєкт…";
+    el.selProject.appendChild(opt0);
+
+    for (const p of cacheProjects) {
+      const id = String(p?.id ?? p?.project_id ?? "");
+      const name = p?.name ?? p?.title ?? `Проєкт ${id}`;
+      if (!id) continue;
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = name;
+      el.selProject.appendChild(opt);
+    }
+
+    if (lastId) el.selProject.value = lastId;
+
+    el.selProject.addEventListener("change", () => {
+      const v = (el.selProject.value || "").trim();
+      if (v) localStorage.setItem(LS.lastProjectId, v);
+    }, { once: true });
   }
 
-  function setMetric(metric) {
-    state.metric = metric;
-    localStorage.setItem(S.lastMetric, metric);
+  // -----------------------------
+  // Market
+  // -----------------------------
+  let marketRows = [];
+  let currentMetric = (localStorage.getItem(LS.lastMetric) || "median").trim() || "median";
 
-    // pressed UI
+  function metricValue(row, metric) {
+    const m = metric || "median";
     const map = {
-      median: btnMetricMedian,
-      p25: btnMetricP25,
-      p75: btnMetricP75,
+      median: row?.median,
+      p25: row?.p25,
+      p75: row?.p75,
+      items: row?.items_count,
     };
-    Object.entries(map).forEach(([k, el]) => {
-      if (!el) return;
-      el.setAttribute("aria-pressed", k === metric ? "true" : "false");
-    });
-
-    drawChart(state.marketRows || [], metric);
+    const v = map[m];
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
   }
 
-  // ----------------------------
-  // Chart
-  // ----------------------------
+  function computeKPIs(rows) {
+    const last = rows?.[rows.length - 1] || null;
+
+    const median = metricValue(last, "median");
+    const p25 = metricValue(last, "p25");
+    const p75 = metricValue(last, "p75");
+    const items = metricValue(last, "items");
+
+    const prev = rows?.length > 1 ? rows[rows.length - 2] : null;
+    const prevMedian = prev ? metricValue(prev, "median") : null;
+
+    setText(el.kpiTypical, fmtMoney(median));
+    setText(el.kpiRange, (p75 !== null && p25 !== null) ? fmtMoney(p75 - p25) : "—");
+    setText(el.kpiCount, (items !== null) ? String(Math.round(items)) : "—");
+    setText(el.kpiDelta, (median !== null && prevMedian !== null) ? fmtMoney(median - prevMedian) : "—");
+  }
+
+  function renderMarketTable(rows) {
+    if (!el.marketTbody) return;
+    el.marketTbody.innerHTML = "";
+
+    if (!rows || rows.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" style="padding:12px;color:#5b667a;">Немає даних для відображення.</td>`;
+      el.marketTbody.appendChild(tr);
+      return;
+    }
+
+    for (const r of rows) {
+      const taken = r?.taken_at ? String(r.taken_at).slice(0, 19).replace("T", " ") : "—";
+      const items = r?.items_count ?? "—";
+      const med = fmtMoney(r?.median);
+      const p25 = fmtMoney(r?.p25);
+      const p75 = fmtMoney(r?.p75);
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${taken}</td>
+        <td>${items}</td>
+        <td>${med}</td>
+        <td>${p25}</td>
+        <td>${p75}</td>
+      `;
+      el.marketTbody.appendChild(tr);
+    }
+  }
+
   function drawChart(rows, metric) {
-    if (!chartCanvas) return;
-    const canvas = chartCanvas;
+    if (!el.chart) return;
+    const canvas = el.chart;
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
 
@@ -695,35 +620,33 @@
 
     const ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
 
     // background
-    ctx.clearRect(0, 0, rect.width, rect.height);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, rect.width, rect.height);
-
-    const pad = { l: 48, r: 14, t: 14, b: 28 };
-    const W = rect.width - pad.l - pad.r;
-    const H = rect.height - pad.t - pad.b;
 
     if (!rows || rows.length < 2) {
       ctx.fillStyle = "#5b667a";
       ctx.font = "13px system-ui";
-      ctx.fillText("Недостатньо даних для графіка", pad.l, pad.t + 14);
+      ctx.fillText("Недостатньо даних для графіка", 14, 22);
       return;
     }
 
-    // sort by time oldest -> newest
-    const sorted = [...rows].sort((a, b) => safeStr(takenAt(a)).localeCompare(safeStr(takenAt(b))));
-    const values = sorted
-      .map((r) => metricValue(r, metric))
-      .filter((v) => Number.isFinite(v));
+    const values = rows
+      .map(r => metricValue(r, metric))
+      .filter(v => Number.isFinite(v));
 
     if (values.length < 2) {
       ctx.fillStyle = "#5b667a";
       ctx.font = "13px system-ui";
-      ctx.fillText("Недостатньо числових даних", pad.l, pad.t + 14);
+      ctx.fillText("Недостатньо даних для графіка", 14, 22);
       return;
     }
+
+    const pad = { l: 54, r: 14, t: 14, b: 28 };
+    const W = rect.width - pad.l - pad.r;
+    const H = rect.height - pad.t - pad.b;
 
     const min = Math.min(...values);
     const max = Math.max(...values);
@@ -735,7 +658,6 @@
     // grid
     ctx.strokeStyle = "rgba(230,234,243,1)";
     ctx.lineWidth = 1;
-
     ctx.beginPath();
     for (let i = 0; i <= 4; i++) {
       const yy = pad.t + (i / 4) * H;
@@ -744,14 +666,14 @@
     }
     ctx.stroke();
 
-    // labels
+    // labels min/max
     ctx.fillStyle = "#5b667a";
     ctx.font = "12px system-ui";
-    ctx.fillText(`${fmtMoney(max)}`, 10, pad.t + 12);
-    ctx.fillText(`${fmtMoney(min)}`, 10, pad.t + H);
+    ctx.fillText(fmtMoney(max), 10, pad.t + 12);
+    ctx.fillText(fmtMoney(min), 10, pad.t + H);
 
     // line
-    ctx.strokeStyle = "rgba(47,107,255,.95)";
+    ctx.strokeStyle = "#2f6bff";
     ctx.lineWidth = 2;
     ctx.beginPath();
     values.forEach((v, i) => {
@@ -761,175 +683,195 @@
       else ctx.lineTo(xx, yy);
     });
     ctx.stroke();
-
-    // points
-    ctx.fillStyle = "rgba(47,107,255,.95)";
-    values.forEach((v, i) => {
-      const xx = x(i);
-      const yy = y(v);
-      ctx.beginPath();
-      ctx.arc(xx, yy, 3, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // title
-    const title =
-      metric === "median" ? "Медіана" :
-      metric === "p25" ? "P25" : "P75";
-
-    ctx.fillStyle = "#0b1220";
-    ctx.font = "12px system-ui";
-    ctx.fillText(title, pad.l, rect.height - 10);
   }
 
-  // ----------------------------
-  // Queries
-  // ----------------------------
-  async function loadQueries() {
-    clearMsg(queriesMsg);
-    const mode = selQueryMode.value || "with_category";
-    const limit = Math.max(5, Number(inpQueriesLimit.value || 50));
+  async function loadMarket() {
+    clearNote(el.marketMsg);
+
+    const projectId = (el.selProject?.value || localStorage.getItem(LS.lastProjectId) || "").trim();
+    if (!projectId) {
+      setNote(el.marketMsg, "warn", "Оберіть проєкт.");
+      return;
+    }
+
+    const limit = Number(el.inpQLimit?.value ?? 30) || 30;
+    const offset = Number(el.inpOffset?.value ?? 0) || 0;
+    const onlyValid = !!el.chkOnlyValid?.checked;
+
+    if (!getToken()) {
+      setNote(el.marketMsg, "warn", "Увійдіть, щоб переглядати ринок.");
+      return;
+    }
 
     try {
-      const endpoint =
-        mode === "plain"
-          ? "/analytics/top-search-queries"
-          : "/analytics/top-search-queries-with-category";
+      const qs = new URLSearchParams();
+      qs.set("limit", String(limit));
+      qs.set("offset", String(offset));
+      qs.set("only_valid", onlyValid ? "true" : "false");
 
-      const qs = new URLSearchParams({ limit: String(limit) });
-      const data = await apiFetch(`${endpoint}?${qs.toString()}`, { method: "GET" });
-
-      const rows = Array.isArray(data) ? data : (data && (data.items || data.results || data.rows)) || [];
-      queriesTbody.innerHTML = "";
-
-      if (!rows.length) {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td colspan="5" class="muted">Немає даних.</td>`;
-        queriesTbody.appendChild(tr);
-        return;
-      }
-
-      rows.forEach((r) => {
-        const q = pickFirst(r, ["query", "q", "text"], "—");
-        const cnt = Number(pickFirst(r, ["count", "items", "n"], NaN));
-        const cat = pickFirst(r, ["category", "cat"], mode === "plain" ? "—" : "");
-        const score = pickFirst(r, ["score", "weight"], "");
-        const src = pickFirst(r, ["source", "from"], "OLX");
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><b>${safeStr(q)}</b></td>
-          <td>${Number.isFinite(cnt) ? fmtNum(cnt) : "—"}</td>
-          <td>${safeStr(cat || "—")}</td>
-          <td class="muted">${safeStr(score || "—")}</td>
-          <td class="muted">${safeStr(src || "—")}</td>
-        `;
-        queriesTbody.appendChild(tr);
+      const rows = await apiFetch(`/olx/projects/${encodeURIComponent(projectId)}/market/history?${qs.toString()}`, {
+        method: "GET",
+        auth: true,
       });
 
-    } catch (e) {
-      setMsg(queriesMsg, humanApiError(e), true);
+      marketRows = Array.isArray(rows) ? rows : (rows?.items || []);
+      if (!Array.isArray(marketRows)) marketRows = [];
+
+      // sort by taken_at if present
+      marketRows.sort((a, b) => String(a?.taken_at || "").localeCompare(String(b?.taken_at || "")));
+
+      computeKPIs(marketRows);
+      renderMarketTable(marketRows);
+      drawChart(marketRows, currentMetric);
+
+      if (marketRows.length === 0) {
+        setNote(el.marketMsg, "warn", "Дані не знайдено для цього проєкту/параметрів.");
+      }
+    } catch (err) {
+      setNote(el.marketMsg, "danger", humanApiError(err));
     }
   }
 
-  // ----------------------------
-  // Wiring
-  // ----------------------------
   function bindMarket() {
-    btnLoadMarket.addEventListener("click", loadMarket);
-    btnPrev.addEventListener("click", prevMarket); // older
-    btnNext.addEventListener("click", nextMarket); // newer
+    el.btnLoadMarket?.addEventListener("click", (e) => { e.preventDefault(); loadMarket(); });
 
-    // metric toggle
-    btnMetricMedian.addEventListener("click", () => setMetric("median"));
-    btnMetricP25.addEventListener("click", () => setMetric("p25"));
-    btnMetricP75.addEventListener("click", () => setMetric("p75"));
-
-    // persist api base input
-    if (inpApiBase) {
-      inpApiBase.value = state.apiBase || "";
-      inpApiBase.addEventListener("change", () => setApiBase(inpApiBase.value));
-      inpApiBase.addEventListener("blur", () => setApiBase(inpApiBase.value));
-    }
-
-    // token input is only for debug; accept "Bearer ..." or raw
-    if (inpToken) {
-      inpToken.value = state.token ? `Bearer ${state.token}` : "";
-      inpToken.addEventListener("change", () => {
-        const raw = (inpToken.value || "").trim();
-        const t = raw.replace(/^Bearer\s+/i, "");
-        setToken(t);
-        loadMe();
-      });
-    }
-
-    // restore stored offset
-    if (state.offset && inpOffset) inpOffset.value = String(state.offset);
-
-    // store when select changes
-    selProject.addEventListener("change", () => {
-      const v = selProject.value;
-      if (v) localStorage.setItem(S.lastProjectId, v);
+    el.btnPrev?.addEventListener("click", (e) => {
+      e.preventDefault();
+      const limit = Number(el.inpQLimit?.value ?? 30) || 30;
+      const cur = Number(el.inpOffset?.value ?? 0) || 0;
+      const next = Math.max(0, cur - limit);
+      if (el.inpOffset) el.inpOffset.value = String(next);
+      loadMarket();
     });
+
+    el.btnNext?.addEventListener("click", (e) => {
+      e.preventDefault();
+      const limit = Number(el.inpQLimit?.value ?? 30) || 30;
+      const cur = Number(el.inpOffset?.value ?? 0) || 0;
+      const next = cur + limit;
+      if (el.inpOffset) el.inpOffset.value = String(next);
+      loadMarket();
+    });
+
+    // metric toggles
+    function setMetric(m) {
+      currentMetric = m;
+      localStorage.setItem(LS.lastMetric, m);
+      el.metricBtns.forEach(b => b.classList.toggle("active", b.getAttribute("data-metric") === m));
+      drawChart(marketRows, currentMetric);
+    }
+
+    el.metricBtns.forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const m = btn.getAttribute("data-metric");
+        if (!m) return;
+        setMetric(m);
+      });
+    });
+
+    // init active metric
+    if (el.metricBtns.length) {
+      const has = el.metricBtns.some(b => b.getAttribute("data-metric") === currentMetric);
+      if (!has) currentMetric = "median";
+      el.metricBtns.forEach(b => b.classList.toggle("active", b.getAttribute("data-metric") === currentMetric));
+    }
+  }
+
+  // -----------------------------
+  // Queries
+  // -----------------------------
+  async function loadQueries() {
+    clearNote(el.queriesMsg);
+    if (!getToken()) {
+      setNote(el.queriesMsg, "warn", "Увійдіть, щоб переглядати запити.");
+      return;
+    }
+
+    const mode = (el.selQMode?.value || "plain").trim();
+
+    // Prefer endpoint "top-search-queries-with-category" for with_category
+    const path =
+      mode === "with_category"
+        ? "/analytics/top-search-queries-with-category"
+        : "/analytics/top-search-queries";
+
+    try {
+      const data = await apiFetch(path, { method: "GET", auth: true });
+      const rows = Array.isArray(data) ? data : (data?.items || []);
+      renderQueries(rows);
+      if (!rows || rows.length === 0) setNote(el.queriesMsg, "warn", "Немає даних для запитів.");
+    } catch (err) {
+      setNote(el.queriesMsg, "danger", humanApiError(err));
+    }
+  }
+
+  function renderQueries(rows) {
+    if (!el.queriesTbody) return;
+    el.queriesTbody.innerHTML = "";
+
+    if (!rows || rows.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" style="padding:12px;color:#5b667a;">Немає даних.</td>`;
+      el.queriesTbody.appendChild(tr);
+      return;
+    }
+
+    for (const r of rows) {
+      const q = r?.query ?? r?.q ?? "—";
+      const c = r?.count ?? r?.cnt ?? r?.items_count ?? "—";
+      const cat = r?.category ?? r?.category_name ?? "—";
+      const score = r?.score ?? r?.confidence ?? "—";
+      const src = r?.source ?? "OLX";
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${String(q)}</td>
+        <td>${String(c)}</td>
+        <td>${String(cat)}</td>
+        <td>${String(score)}</td>
+        <td>${String(src)}</td>
+      `;
+      el.queriesTbody.appendChild(tr);
+    }
   }
 
   function bindQueries() {
-    btnLoadQueries.addEventListener("click", loadQueries);
+    el.btnLoadQueries?.addEventListener("click", (e) => { e.preventDefault(); loadQueries(); });
   }
 
-  function bindProjects() {
-    btnReloadProjects.addEventListener("click", () => loadProjects(false));
-    btnCreateProject.addEventListener("click", createProject);
-  }
-
-  function bindAccount() {
-    btnRegister.addEventListener("click", register);
-    btnLogin.addEventListener("click", login);
-    btnLogout.addEventListener("click", logout);
-  }
-
-  // ----------------------------
-  // Init
-  // ----------------------------
-  async function init() {
-    bindTabs();
+  // -----------------------------
+  // Boot
+  // -----------------------------
+  async function boot() {
+    bindNav();
+    bindAuth();
+    bindProjects();
     bindMarket();
     bindQueries();
-    bindProjects();
-    bindAccount();
 
-    // Default metric UI
-    setMetric(state.metric);
+    showRoute(getRouteFromHash());
 
-    // Health check
-    setApiStatus(false, "Перевірка сервера…");
-    await checkHealth();
+    await pingServer();
+    setInterval(pingServer, 20000);
 
-    // Try load me if token exists
-    await loadMe();
+    // initial
+    if (el.apiBaseInput) el.apiBaseInput.value = getApiBase();
 
-    // Load projects (silently) so Market select fills
-    await loadProjects(true);
+    await loadMe({ silent: true });
+    await fillProjectsDropdown();
 
-    // If we have a selected project + token, keep market ready
-    const lastPid = localStorage.getItem(S.lastProjectId) || "";
-    if (lastPid) {
-      selProject.value = lastPid;
+    // optional auto-load projects if logged in
+    if (getToken()) {
+      await loadProjects({ silent: true });
+      await fillProjectsDropdown();
     }
-
-    // Keep offset in sync with stored
-    if (inpOffset) {
-      inpOffset.value = String(state.offset || 0);
-    }
-
-    // periodic health
-    setInterval(checkHealth, 30000);
   }
 
-  // start after DOM
+  // Run after DOM ready
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", boot);
   } else {
-    init();
+    boot();
   }
 })();
