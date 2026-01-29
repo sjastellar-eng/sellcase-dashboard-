@@ -1,11 +1,9 @@
 /* =========================================================
-   SellCase app.js — stable (no debug banners, no image touching)
-   - Bottom tabs navigation
-   - Server status: Connecting… / Online / Offline
-   - Auth: register, login, me, logout (token in localStorage)
-   - Projects: load list, reuse for Market select
-   - Market: load KPI summary + Prev/Next (offset)
-   - Queries: run /search/analytics + save queries locally
+   SellCase app.js — FIXED:
+   ✅ login more robust (tries payload variants + endpoints)
+   ✅ server status ping no longer requires JSON (so it won’t stick on Connecting…)
+   ✅ logo fills the square (not tiny)
+   ✅ no debug banners / no endpoint text in UI
    ========================================================= */
 
 (() => {
@@ -19,17 +17,21 @@
   const LS_TOKEN = "sellcase_token_v1";
   const LS_SAVED_QUERIES = "sellcase_saved_queries_v1";
 
-  const TIMEOUT_MS = 15000;      // Render cold start friendly
+  const TIMEOUT_MS = 20000;     // Render cold start friendly
   const PING_INTERVAL_MS = 30000;
   const PING_RETRIES = 2;
 
-  // We try multiple routes because backend may differ. First that works wins.
+  // We try multiple routes; first that works wins.
   const ROUTES = {
-    health: ["/health", "/api/health", "/ping"],
+    // IMPORTANT: ping routes must not require JSON parsing
+    health: ["/health", "/api/health", "/ping", "/docs"],
+
     login: ["/auth/login", "/api/auth/login"],
     register: ["/auth/register", "/api/auth/register"],
     me: ["/auth/me", "/api/auth/me", "/users/me", "/api/users/me"],
+
     projects: ["/projects", "/api/projects", "/project", "/api/project"],
+
     marketSummary: [
       "/metrics/summary",
       "/api/metrics/summary",
@@ -38,13 +40,14 @@
       "/market/summary",
       "/api/market/summary",
     ],
-    // Search/analytics examples (you showed /search/analytics/top-brands works)
+
     topBrands: [
       "/search/analytics/top-brands",
       "/api/search/analytics/top-brands",
       "/search/analytics/top_brands",
       "/api/search/analytics/top_brands",
     ],
+
     queryRun: [
       "/search/analytics/query",
       "/api/search/analytics/query",
@@ -65,7 +68,6 @@
   function getToken() {
     return localStorage.getItem(LS_TOKEN) || "";
   }
-
   function setToken(token) {
     if (token) localStorage.setItem(LS_TOKEN, token);
     else localStorage.removeItem(LS_TOKEN);
@@ -137,17 +139,16 @@
     if (v == null || v === "" || Number.isNaN(Number(v))) return "—";
     const n = Number(v);
     try {
-      return new Intl.NumberFormat("uk-UA", {
-        maximumFractionDigits: 0,
-      }).format(n) + " грн";
+      return (
+        new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 0 }).format(n) +
+        " грн"
+      );
     } catch {
       return `${Math.round(n)} грн`;
     }
   }
 
   function asArrayProjects(payload) {
-    // Accept many shapes:
-    // {items:[...]}, {projects:[...]}, [...], {data:[...]}
     if (!payload) return [];
     if (Array.isArray(payload)) return payload;
     if (Array.isArray(payload.items)) return payload.items;
@@ -172,7 +173,6 @@
   }
 
   function normalizeMe(me) {
-    // Accept {first_name,last_name,email} or {full_name} etc.
     const first = me?.first_name || me?.firstName || "";
     const last = me?.last_name || me?.lastName || "";
     const full =
@@ -190,35 +190,35 @@
     };
   }
 
-  /* -------------------- FETCH (timeout + retries + route fallbacks) -------------------- */
-  async function fetchJSON(url, options = {}) {
+  /* -------------------- FETCH (timeout) -------------------- */
+  async function fetchWithTimeout(url, options = {}) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-
     try {
-      const res = await fetch(url, {
-        ...options,
-        signal: ctrl.signal,
-      });
-
-      const text = await res.text();
-      let data = null;
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        data = text || null;
-      }
-
-      if (!res.ok) {
-        const err = new Error("HTTP " + res.status);
-        err.status = res.status;
-        err.data = data;
-        throw err;
-      }
-      return data;
+      return await fetch(url, { ...options, signal: ctrl.signal });
     } finally {
       clearTimeout(t);
     }
+  }
+
+  async function fetchJSON(url, options = {}) {
+    const res = await fetchWithTimeout(url, options);
+    const text = await res.text();
+
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = text || null;
+    }
+
+    if (!res.ok) {
+      const err = new Error("HTTP " + res.status);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
   }
 
   function authHeaders() {
@@ -226,11 +226,11 @@
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
-  async function tryRoutes(routeList, makeUrl = (p) => buildUrl(p), options = {}) {
+  async function tryRoutesJSON(routeList, options = {}) {
     let lastErr = null;
     for (const p of routeList) {
       try {
-        const data = await fetchJSON(makeUrl(p), options);
+        const data = await fetchJSON(buildUrl(p), options);
         return { ok: true, path: p, data };
       } catch (e) {
         lastErr = e;
@@ -239,14 +239,33 @@
     return { ok: false, error: lastErr };
   }
 
+  async function tryRoutesOK(routeList, options = {}) {
+    // For ping only: any 2xx/3xx is OK; no JSON needed
+    let lastErr = null;
+    for (const p of routeList) {
+      try {
+        const res = await fetchWithTimeout(buildUrl(p), {
+          ...options,
+          method: options.method || "GET",
+        });
+        if (res.ok) return { ok: true, path: p };
+        lastErr = new Error("HTTP " + res.status);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    return { ok: false, error: lastErr };
+  }
+
+  /* -------------------- SERVER STATUS -------------------- */
   async function pingServer() {
     setServerStatus("connecting");
     let ok = false;
 
     for (let i = 0; i <= PING_RETRIES; i++) {
-      const r = await tryRoutes(ROUTES.health, (p) => buildUrl(p), {
+      const r = await tryRoutesOK(ROUTES.health, {
         method: "GET",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Cache-Control": "no-cache" },
       });
       if (r.ok) {
         ok = true;
@@ -288,16 +307,15 @@
     if (forms) forms.style.display = "none";
     if (done) done.style.display = "block";
 
-    const title = $("userTitle");
-    const subtitle = $("userSubtitle");
-    const avatar = $("userAvatar");
+    safeText($("userTitle"), me.fullName || "Користувач");
+    safeText($("userSubtitle"), "✅ Вхід виконано.");
 
-    safeText(title, me.fullName || "Користувач");
-    safeText(subtitle, "✅ Вхід виконано.");
+    const avatar = $("userAvatar");
     if (avatar) avatar.textContent = initialsFrom(me.fullName, me.email);
 
     safeText($("meId"), me.id ?? "—");
     safeText($("meCreated"), formatDate(me.createdAt));
+
     if ($("meActive")) {
       if (me.isActive === true) safeText($("meActive"), "Активний");
       else if (me.isActive === false) safeText($("meActive"), "Неактивний");
@@ -315,7 +333,7 @@
   async function loadMeSilently() {
     if (!getToken()) return null;
 
-    const r = await tryRoutes(ROUTES.me, (p) => buildUrl(p), {
+    const r = await tryRoutesJSON(ROUTES.me, {
       method: "GET",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
     });
@@ -324,6 +342,65 @@
     const me = normalizeMe(r.data);
     uiAfterLogin(me);
     return me;
+  }
+
+  function extractToken(data) {
+    return (
+      data?.access_token ||
+      data?.token ||
+      data?.jwt ||
+      data?.data?.access_token ||
+      data?.data?.token ||
+      ""
+    );
+  }
+
+  async function loginSmart(email, password) {
+    // Many backends differ in field names. We try a few.
+    const bodies = [
+      { email, password },
+      { username: email, password },
+      { login: email, password },
+      { user: email, password },
+    ];
+
+    // Also try x-www-form-urlencoded if backend expects it
+    const jsonHeaders = { "Content-Type": "application/json" };
+
+    let lastErr = null;
+
+    for (const endpoint of ROUTES.login) {
+      for (const b of bodies) {
+        try {
+          const data = await fetchJSON(buildUrl(endpoint), {
+            method: "POST",
+            headers: jsonHeaders,
+            body: JSON.stringify(b),
+          });
+          const token = extractToken(data);
+          return { ok: true, data, token };
+        } catch (e) {
+          lastErr = e;
+        }
+
+        // form encoded attempt
+        try {
+          const form = new URLSearchParams();
+          Object.entries(b).forEach(([k, v]) => form.set(k, String(v)));
+          const data = await fetchJSON(buildUrl(endpoint), {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: form.toString(),
+          });
+          const token = extractToken(data);
+          return { ok: true, data, token };
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+    }
+
+    return { ok: false, error: lastErr };
   }
 
   function initAuth() {
@@ -338,6 +415,7 @@
 
         const email = String($("loginEmail")?.value || "").trim();
         const password = String($("loginPassword")?.value || "").trim();
+
         if (!email || !password) {
           setError($("accountError"), "Будь ласка, введіть email та пароль.");
           return;
@@ -345,35 +423,18 @@
 
         try {
           showToast("Виконуємо вхід…");
-          const r = await tryRoutes(ROUTES.login, (p) => buildUrl(p), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
-          });
 
-          if (!r.ok) throw r.error || new Error("Login failed");
+          const r = await loginSmart(email, password);
+          if (!r.ok) throw r.error || new Error("login failed");
 
-          const token =
-            r.data?.access_token ||
-            r.data?.token ||
-            r.data?.jwt ||
-            r.data?.data?.token ||
-            "";
-          if (!token) {
-            // Some backends return me directly and set cookie; try /me anyway.
-            // But for SPA we expect token. Still: try to continue.
-            showToast("Вхід успішний.");
-          } else {
-            setToken(token);
-          }
+          if (r.token) setToken(r.token);
 
           const me = await loadMeSilently();
           if (!me) {
-            // fallback: show generic but still hide forms if token exists
+            // If backend doesn’t have /me, still show user
             uiAfterLogin({ fullName: "Користувач", email });
           }
 
-          // Try load projects for selects after login (if backend requires auth)
           await loadProjects(true);
         } catch (err) {
           setToken("");
@@ -397,27 +458,23 @@
         const password = String($("regPassword")?.value || "").trim();
 
         if (!email || !password || !first_name) {
-          setError(
-            $("accountError"),
-            "Будь ласка, заповніть імʼя, email та пароль."
-          );
+          setError($("accountError"), "Будь ласка, заповніть імʼя, email та пароль.");
           return;
         }
 
         try {
           showToast("Створюємо акаунт…");
-          const r = await tryRoutes(ROUTES.register, (p) => buildUrl(p), {
+
+          const r = await tryRoutesJSON(ROUTES.register, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ first_name, last_name, email, password }),
           });
 
-          if (!r.ok) throw r.error || new Error("Register failed");
+          if (!r.ok) throw r.error || new Error("register failed");
 
           showToast("✅ Акаунт створено. Тепер увійдіть.");
 
-          // Do NOT auto-fill login fields (you asked earlier not to переносить)
-          // Just clear register fields
           if ($("regFirstName")) $("regFirstName").value = "";
           if ($("regLastName")) $("regLastName").value = "";
           if ($("regEmail")) $("regEmail").value = "";
@@ -500,7 +557,7 @@
     const err = $("projectsError");
     if (!silent) setError(err, "");
 
-    const r = await tryRoutes(ROUTES.projects, (p) => buildUrl(p), {
+    const r = await tryRoutesJSON(ROUTES.projects, {
       method: "GET",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
     });
@@ -510,10 +567,7 @@
       fillMarketProjects([]);
       renderProjectsList([]);
       if (!silent) {
-        setError(
-          err,
-          "Не вдалося завантажити проекти. Спробуйте пізніше."
-        );
+        setError(err, "Не вдалося завантажити проекти. Спробуйте пізніше.");
       }
       return [];
     }
@@ -531,7 +585,7 @@
   }
 
   /* -------------------- MARKET -------------------- */
-  let marketCursor = 0; // offset
+  let marketCursor = 0;
 
   function resetMarketKpi() {
     safeText($("kpiTypical"), "—");
@@ -541,60 +595,28 @@
   }
 
   function applyMarketKpi(data) {
-    // Accept flexible server payloads
     const typical =
-      data?.typical_price ??
-      data?.typical ??
-      data?.median ??
-      data?.p50 ??
-      data?.price_typical ??
-      null;
+      data?.typical_price ?? data?.typical ?? data?.median ?? data?.p50 ?? null;
 
     const delta =
-      data?.delta ??
-      data?.delta_typical ??
-      data?.typical_delta ??
-      data?.change ??
-      null;
+      data?.delta ?? data?.delta_typical ?? data?.typical_delta ?? null;
 
-    const min =
-      data?.range_min ??
-      data?.min ??
-      data?.p10 ??
-      data?.low ??
-      data?.price_min ??
-      null;
+    const min = data?.range_min ?? data?.min ?? data?.p10 ?? null;
+    const max = data?.range_max ?? data?.max ?? data?.p90 ?? null;
 
-    const max =
-      data?.range_max ??
-      data?.max ??
-      data?.p90 ??
-      data?.high ??
-      data?.price_max ??
-      null;
-
-    const count =
-      data?.count ??
-      data?.total ??
-      data?.ads_count ??
-      data?.items ??
-      null;
+    const count = data?.count ?? data?.total ?? data?.ads_count ?? null;
 
     safeText($("kpiTypical"), moneyUAH(typical));
 
-    if (delta == null || Number.isNaN(Number(delta))) {
-      safeText($("kpiDelta"), "—");
-    } else {
+    if (delta == null || Number.isNaN(Number(delta))) safeText($("kpiDelta"), "—");
+    else {
       const d = Number(delta);
       const sign = d > 0 ? "+" : "";
       safeText($("kpiDelta"), `${sign}${moneyUAH(d).replace(" грн", "")} грн`);
     }
 
-    if (min != null && max != null) {
-      safeText($("kpiRange"), `${moneyUAH(min)} — ${moneyUAH(max)}`);
-    } else {
-      safeText($("kpiRange"), "—");
-    }
+    if (min != null && max != null) safeText($("kpiRange"), `${moneyUAH(min)} — ${moneyUAH(max)}`);
+    else safeText($("kpiRange"), "—");
 
     safeText($("kpiCount"), count != null ? String(count) : "—");
   }
@@ -607,7 +629,6 @@
     const points = Number($("marketPoints")?.value || 30);
     const reliable = !!$("marketReliable")?.checked;
 
-    // offset from input has priority, else internal cursor
     const offsetInput = $("marketOffset");
     let offset = Number(offsetInput?.value || marketCursor);
     if (Number.isNaN(offset) || offset < 0) offset = 0;
@@ -625,34 +646,27 @@
 
     try {
       showToast("Завантажуємо аналітику…");
-      const r = await tryRoutes(
-        ROUTES.marketSummary.map((p) => p + "?" + params.toString()),
-        (p) => buildUrl(p),
-        {
-          method: "GET",
-          headers: { ...authHeaders(), "Content-Type": "application/json" },
-        }
-      );
+      const routeList = ROUTES.marketSummary.map((p) => p + "?" + params.toString());
+      const r = await tryRoutesJSON(routeList, {
+        method: "GET",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+      });
 
-      if (!r.ok) throw r.error || new Error("Market load failed");
+      if (!r.ok) throw r.error || new Error("market load failed");
 
       resetMarketKpi();
       applyMarketKpi(r.data);
 
       marketCursor = offset;
       if (offsetInput) offsetInput.value = String(offset);
-
       setHint("marketHint", "Готово.");
     } catch (err) {
       resetMarketKpi();
-      setError(
-        $("marketError"),
-        "Не вдалося завантажити аналітику. Спробуйте ще раз трохи пізніше."
-      );
+      setError($("marketError"), "Не вдалося завантажити аналітику. Спробуйте ще раз пізніше.");
     }
   }
 
-  function initMarket() {
+    function initMarket() {
     const btnLoad = $("btnMarketLoad");
     if (btnLoad) btnLoad.addEventListener("click", loadMarket);
 
@@ -698,26 +712,17 @@
           return;
         }
 
-        const payload = {
-          type: "market",
-          project_id: project,
-          reliable,
-          points,
-          offset,
-          ts: Date.now(),
-        };
-
+        const payload = { type: "market", project_id: project, reliable, points, offset, ts: Date.now() };
         const saved = loadSavedQueries();
         saved.unshift(payload);
         saveSavedQueries(saved);
-
         renderSavedQueries();
         showToast("✅ Запит збережено.");
       });
     }
   }
 
-  /* -------------------- QUERIES (search/analytics) -------------------- */
+  /* -------------------- QUERIES -------------------- */
   function loadSavedQueries() {
     try {
       const raw = localStorage.getItem(LS_SAVED_QUERIES) || "[]";
@@ -749,7 +754,7 @@
     wrap.style.display = "grid";
     wrap.style.gap = "8px";
 
-    saved.slice(0, 10).forEach((q, idx) => {
+    saved.slice(0, 10).forEach((q) => {
       const card = document.createElement("div");
       card.style.padding = "10px 12px";
       card.style.border = "1px solid #e5e7eb";
@@ -768,9 +773,7 @@
       const t = document.createElement("div");
       t.style.fontWeight = "1100";
       t.textContent =
-        q.type === "market"
-          ? `Market • Project ${q.project_id}`
-          : `Запит • ${q.query || "—"}`;
+        q.type === "market" ? `Market • Project ${q.project_id}` : `Запит • ${q.query || "—"}`;
 
       const d = document.createElement("div");
       d.style.fontWeight = "800";
@@ -813,71 +816,65 @@
     renderSavedQueries();
 
     const btnRun = $("btnRunQuery");
-    if (btnRun) {
-      btnRun.addEventListener("click", async () => {
-        setError($("marketError"), ""); // just in case
-        const q = String($("queryText")?.value || "").trim();
-        const category = String($("queryCategory")?.value || "").trim();
+    if (!btnRun) return;
 
-        if (!q) {
-          showToast("Введіть запит для пошуку.");
-          return;
+    btnRun.addEventListener("click", async () => {
+      const q = String($("queryText")?.value || "").trim();
+      const category = String($("queryCategory")?.value || "").trim();
+
+      if (!q) {
+        showToast("Введіть запит для пошуку.");
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set("q", q);
+      if (category) params.set("category", category);
+
+      try {
+        showToast("Шукаємо…");
+
+        // Prefer real query endpoint; if not supported, at least ensure analytics reachable
+        let r = await tryRoutesJSON(
+          ROUTES.queryRun.map((p) => p + "?" + params.toString()),
+          { method: "GET", headers: { ...authHeaders(), "Content-Type": "application/json" } }
+        );
+
+        if (!r.ok) {
+          r = await tryRoutesJSON(ROUTES.topBrands, {
+            method: "GET",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+          });
         }
 
-        // First: prove endpoint works (top-brands) OR run query if supported
-        // We'll try queryRun first, then fall back to topBrands
-        const params = new URLSearchParams();
-        params.set("q", q);
-        if (category) params.set("category", category);
+        if (!r.ok) throw r.error || new Error("search failed");
 
-        try {
-          showToast("Шукаємо…");
+        showToast("✅ Запит виконано. Вивід результатів підключимо наступним кроком.");
 
-          let r = await tryRoutes(
-            ROUTES.queryRun.map((p) => p + "?" + params.toString()),
-            (p) => buildUrl(p),
-            {
-              method: "GET",
-              headers: { ...authHeaders(), "Content-Type": "application/json" },
-            }
-          );
-
-          if (!r.ok) {
-            // fallback: show something from top-brands as "preview"
-            r = await tryRoutes(ROUTES.topBrands, (p) => buildUrl(p), {
-              method: "GET",
-              headers: { ...authHeaders(), "Content-Type": "application/json" },
-            });
-          }
-
-          if (!r.ok) throw r.error || new Error("Search failed");
-
-          // We DON'T have a dedicated results block in your HTML right now.
-          // So we show a friendly toast, and save query.
-          showToast("✅ Запит виконано. (Вивід результатів підключимо наступним кроком)");
-
-          // Save query locally
-          const saved = loadSavedQueries();
-          saved.unshift({ type: "query", query: q, category, ts: Date.now() });
-          saveSavedQueries(saved);
-          renderSavedQueries();
-        } catch (err) {
-          showToast("Не вдалося виконати пошук. Спробуйте пізніше.");
-        }
-      });
-    }
+        const saved = loadSavedQueries();
+        saved.unshift({ type: "query", query: q, category, ts: Date.now() });
+        saveSavedQueries(saved);
+        renderSavedQueries();
+      } catch {
+        showToast("Не вдалося виконати пошук. Спробуйте пізніше.");
+      }
+    });
   }
 
-  /* -------------------- LOGO SAFETY (do NOT break images) -------------------- */
+  /* -------------------- LOGO FIX (fill the cell) -------------------- */
   function initLogoFix() {
-    // We don't change src. Only ensure the top-left logo stays neat.
+    // Top-left small logo in appbar
     const logoImg = document.querySelector(".logo img");
     if (logoImg) {
-      logoImg.style.width = "34px";
-      logoImg.style.height = "34px";
+      // Fill the 44x44 box nicely
+      logoImg.style.width = "100%";
+      logoImg.style.height = "100%";
       logoImg.style.objectFit = "contain";
+      logoImg.style.padding = "6px";
+      logoImg.style.display = "block";
     }
 
+    // Hero logo (market)
     const heroLogo = $("brandLogo");
     if (heroLogo) {
       heroLogo.style.objectFit = "contain";
@@ -893,17 +890,16 @@
     initQueries();
     initLogoFix();
 
-    // Server status ping loop
+    // Ping loop
     await pingServer();
     setInterval(pingServer, PING_INTERVAL_MS);
 
-    // Load projects (public or auth-required; either way safe)
+    // Load projects
     await loadProjects(true);
 
-    // Restore session
+    // Restore session if token exists
     await loadMeSilently();
   }
 
   document.addEventListener("DOMContentLoaded", boot);
 })();
-    
