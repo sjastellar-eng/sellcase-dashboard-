@@ -1,8 +1,9 @@
-/* ========= SellCase app.js (final, updated) =========
+/* ========= SellCase app.js (token auth + /auth/me + /metrics/summary) =========
    Swagger confirms:
    - POST /auth/register (application/json): { email, full_name, password }
-   - POST /auth/login (application/x-www-form-urlencoded): username, password
-   - GET  /auth/me returns { email, full_name, id, created_at, is_active }
+   - POST /auth/login (application/x-www-form-urlencoded): username, password (OAuth2 password)
+   - GET  /auth/me requires Authorization: Bearer <token>
+   - Market live: GET /metrics/summary -> KPI
 */
 
 const API_BASE = "https://sellcase-backend.onrender.com"; // <-- проверь
@@ -12,12 +13,24 @@ const ENDPOINTS = {
   register: "/auth/register",
   login: "/auth/login",
   me: "/auth/me",
-  logout: "/auth/logout", // если нет — просто очистим UI
+  metricsSummary: "/metrics/summary",
+  // projects: "/projects", // если появится/есть — подключим отдельно
 };
 
 const LS_KEY = "sellcase_saved_queries_v1";
+const LS_TOKEN = "sellcase_token_v1";
 
 const $ = (id) => document.getElementById(id);
+
+/* ========= Token ========= */
+
+function setToken(token) {
+  if (token) localStorage.setItem(LS_TOKEN, token);
+  else localStorage.removeItem(LS_TOKEN);
+}
+function getToken() {
+  return localStorage.getItem(LS_TOKEN) || "";
+}
 
 /* ========= UI helpers ========= */
 
@@ -71,18 +84,38 @@ function normalizeFetchError(err) {
   return m || "Невідома помилка.";
 }
 
-async function apiFetchJson(path, { method = "GET", body = null, headers = {} } = {}) {
-  const url = API_BASE.replace(/\/$/, "") + path;
+function buildUrl(path) {
+  return API_BASE.replace(/\/$/, "") + path;
+}
 
-  const res = await fetch(url, {
+function authHeaders(extra = {}) {
+  const token = getToken();
+  return token
+    ? { Authorization: `Bearer ${token}`, ...extra }
+    : { ...extra };
+}
+
+async function apiFetchJson(path, { method = "GET", body = null, headers = {} } = {}) {
+  const url = buildUrl(path);
+
+  const init = {
     method,
-    headers: {
+    headers: authHeaders({
+      ...headers,
+    }),
+    credentials: "include",
+  };
+
+  // Only set JSON content-type when body is present or explicitly provided.
+  if (body !== null) {
+    init.headers = authHeaders({
       "Content-Type": "application/json",
       ...headers,
-    },
-    body: body ? JSON.stringify(body) : null,
-    credentials: "include",
-  });
+    });
+    init.body = JSON.stringify(body);
+  }
+
+  const res = await fetch(url, init);
 
   const text = await res.text();
   let data = null;
@@ -104,7 +137,7 @@ async function apiFetchJson(path, { method = "GET", body = null, headers = {} } 
 }
 
 async function apiFetchForm(path, formParams) {
-  const url = API_BASE.replace(/\/$/, "") + path;
+  const url = buildUrl(path);
 
   const body = new URLSearchParams();
   Object.entries(formParams || {}).forEach(([k, v]) => {
@@ -113,7 +146,7 @@ async function apiFetchForm(path, formParams) {
 
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: authHeaders({ "Content-Type": "application/x-www-form-urlencoded" }),
     body,
     credentials: "include",
   });
@@ -165,7 +198,10 @@ function initNav() {
 
 /* ========= AUTH UI Mode ========= */
 
-const state = { me: null };
+const state = {
+  me: null,
+  marketCursor: 0,
+};
 
 function initialsFrom(fullName, email) {
   const n = String(fullName || "").trim();
@@ -206,12 +242,13 @@ function uiAfterLoginOn(meLike) {
   if (sub) sub.textContent = "✅ Вхід успішно виконано.";
   if (av) av.textContent = initialsFrom(full, email);
 
-  // extended fields
   if ($("meId")) $("meId").textContent = String(meLike?.id ?? "—");
   if ($("meCreated")) $("meCreated").textContent = formatDateISO(meLike?.created_at);
-  if ($("meActive")) $("meActive").textContent =
-    meLike?.is_active === true ? "Активний" :
-    meLike?.is_active === false ? "Неактивний" : "—";
+  if ($("meActive")) {
+    $("meActive").textContent =
+      meLike?.is_active === true ? "Активний" :
+      meLike?.is_active === false ? "Неактивний" : "—";
+  }
 }
 
 function uiAfterLoginOff() {
@@ -230,7 +267,6 @@ async function fetchMe() {
   try {
     const me = await apiFetchJson(ENDPOINTS.me);
     state.me = me;
-    // update profile card with real data
     uiAfterLoginOn(me);
     return me;
   } catch {
@@ -258,7 +294,6 @@ async function handleRegister(e) {
     if (!email) throw new Error("Вкажіть email.");
     if (!password || password.length < 8) throw new Error("Пароль має містити мінімум 8 символів.");
 
-    // IMPORTANT: your API expects full_name
     await apiFetchJson(ENDPOINTS.register, {
       method: "POST",
       body: {
@@ -269,7 +304,6 @@ async function handleRegister(e) {
     });
 
     showToast("✅ Ви успішно зареєструвалися.");
-    // hide register block, keep login
     const regBlock = $("registerBlock");
     if (regBlock) regBlock.style.display = "none";
 
@@ -282,6 +316,18 @@ async function handleRegister(e) {
   } finally {
     if (btn) btn.disabled = false;
   }
+}
+
+function extractToken(loginResponse) {
+  // Most FastAPI OAuth2PasswordRequestForm responses:
+  // { "access_token": "...", "token_type": "bearer" }
+  if (!loginResponse) return "";
+  return (
+    loginResponse.access_token ||
+    loginResponse.token ||
+    loginResponse.jwt ||
+    ""
+  );
 }
 
 async function handleLogin(e) {
@@ -300,25 +346,33 @@ async function handleLogin(e) {
   try {
     if (!email || !password) throw new Error("Вкажіть email та пароль.");
 
-    // IMPORTANT: your login uses x-www-form-urlencoded with username/password
-    await apiFetchForm(ENDPOINTS.login, {
+    const loginRes = await apiFetchForm(ENDPOINTS.login, {
       username: email,
       password,
     });
 
-    // show success immediately (even if /auth/me fails for a moment)
+    const token = extractToken(loginRes);
+    if (!token) {
+      // backend вернул "что-то", но не токен -> без него /auth/me не сработает
+      throw new Error("Логін успішний, але сервер не повернув access_token. Перевір відповідь /auth/login у Swagger.");
+    }
+
+    setToken(token);
+
     showToast("✅ Вхід успішно виконано.");
     setHint("loginInfo", "✅ Вхід успішно виконано.");
 
+    // show placeholder immediately
     uiAfterLoginOn({ email, full_name: "Користувач" });
 
-    // fetch real user profile
-    await fetchMe();
+    // fetch real profile
+    const me = await fetchMe();
+    if (!me) throw new Error("Токен збережено, але /auth/me не відповів. Перевір CORS/Authorization на бекенді.");
 
-    // stay on account screen (profile)
     setTab("account");
 
   } catch (err) {
+    setToken("");
     setError(errEl, normalizeFetchError(err));
   } finally {
     if (btn) btn.disabled = false;
@@ -333,17 +387,11 @@ async function handleLogout() {
   if (btn) btn.disabled = true;
 
   try {
-    // try server logout, but don't depend on it
-    try {
-      await apiFetchJson(ENDPOINTS.logout, { method: "POST" });
-    } catch {
-      // ignore if missing
-    }
-
+    setToken("");
     state.me = null;
     uiAfterLoginOff();
     showToast("Ви вийшли з акаунта.");
-
+    setTab("account");
   } catch (err) {
     setError(errEl, normalizeFetchError(err));
   } finally {
@@ -478,44 +526,169 @@ async function ping() {
   }
 }
 
+/* ========= Market: /metrics/summary -> KPI ========= */
+
+function pick(obj, keys) {
+  for (const k of keys) {
+    if (obj && Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== null && obj[k] !== undefined) {
+      return obj[k];
+    }
+  }
+  return undefined;
+}
+
+function formatMoney(v) {
+  if (v === null || v === undefined || v === "" || Number.isNaN(Number(v))) return "—";
+  const n = Number(v);
+  // basic UA formatting
+  return n.toLocaleString("uk-UA");
+}
+
+function setKpi(id, val) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = val;
+}
+
+function buildMetricsQuery() {
+  // project value (id or slug)
+  const project = $("marketProject")?.value || "";
+  const points = Number($("marketPoints")?.value || 30);
+  const offset = Number($("marketOffset")?.value || 0);
+  const reliable = !!$("marketReliable")?.checked;
+
+  // Cursor / paging for prev/next. We use state.marketCursor as generic offset multiplier.
+  // If backend expects "offset" as history offset already, keep it. We add cursor as "cursor" param as optional.
+  const cursor = state.marketCursor;
+
+  const qs = new URLSearchParams();
+  if (project) qs.set("project", project);
+  qs.set("points", String(points));
+  qs.set("offset", String(offset));
+  qs.set("reliable", reliable ? "true" : "false");
+
+  // Optional param if backend supports; harmless if ignored
+  qs.set("cursor", String(cursor));
+
+  return qs.toString();
+}
+
+async function loadMarketSummary() {
+  const errEl = $("marketError");
+  setError(errEl, "");
+  setHint("marketHint", "");
+
+  // Must be logged in (token) because swagger shows Bearer for /auth/me; metrics likely too.
+  if (!getToken()) {
+    setError(errEl, "Потрібен вхід. Спочатку увійдіть в аккаунт.");
+    setTab("account");
+    return;
+  }
+
+  const btn = $("btnMarketLoad");
+  if (btn) btn.disabled = true;
+
+  try {
+    const qs = buildMetricsQuery();
+    const data = await apiFetchJson(`${ENDPOINTS.metricsSummary}?${qs}`);
+
+    // Try to normalize different response schemas
+    // Common candidates:
+    // { typical, delta, min, max, count }
+    // { typical_price, delta_price, range_min, range_max, listings_count }
+    // { summary: {...} }
+    const root = data?.summary || data?.data || data || {};
+
+    const typical = pick(root, ["typical", "typical_price", "price_typical", "median_price", "median", "p50"]);
+    const delta = pick(root, ["delta", "delta_price", "typical_delta", "change", "diff"]);
+    const count = pick(root, ["count", "listings_count", "items_count", "ads_count", "n"]);
+
+    const rMin = pick(root, ["min", "range_min", "low", "p10", "from"]);
+    const rMax = pick(root, ["max", "range_max", "high", "p90", "to"]);
+
+    setKpi("kpiTypical", formatMoney(typical));
+    // delta with sign
+    if (delta === null || delta === undefined || Number.isNaN(Number(delta))) {
+      setKpi("kpiDelta", "—");
+    } else {
+      const n = Number(delta);
+      const s = (n > 0 ? "+" : "") + n.toLocaleString("uk-UA");
+      setKpi("kpiDelta", s);
+    }
+
+    if (rMin !== undefined || rMax !== undefined) {
+      setKpi("kpiRange", `${formatMoney(rMin)} — ${formatMoney(rMax)}`);
+    } else {
+      // maybe range is string
+      const rangeStr = pick(root, ["range", "corridor", "price_range"]);
+      setKpi("kpiRange", rangeStr ? String(rangeStr) : "—");
+    }
+
+    setKpi("kpiCount", (count === undefined ? "—" : Number(count).toLocaleString("uk-UA")));
+
+    setHint("marketHint", "✅ Дані оновлено.");
+    showToast("Ринок: KPI оновлено.");
+
+  } catch (err) {
+    setError(errEl, normalizeFetchError(err));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function initMarket() {
+  const loadBtn = $("btnMarketLoad");
+  if (loadBtn) loadBtn.addEventListener("click", () => {
+    loadMarketSummary();
+  });
+
+  const prev = $("btnPrev");
+  const next = $("btnNext");
+
+  if (prev) prev.addEventListener("click", () => {
+    state.marketCursor = Math.max(0, (state.marketCursor || 0) - 1);
+    loadMarketSummary();
+  });
+  if (next) next.addEventListener("click", () => {
+    // increment cursor (if backend ignores it, harmless)
+    state.marketCursor = (state.marketCursor || 0) + 1;
+    loadMarketSummary();
+  });
+}
+
 /* ========= INIT ========= */
 
 function init() {
   initNav();
   initAuth();
   initQueryUI();
+  initMarket();
 
-  // Projects page currently is UI-only; you can connect to API later.
+  // Projects page пока заглушка (не ломаем)
   const projBtn = $("btnProjectsReload");
   if (projBtn) projBtn.addEventListener("click", () => {
     $("projectsList").textContent = "Поки що не підключено до API проектів.";
     setHint("projectsInfo", "MVP: підключимо згодом.");
   });
 
-  // Market buttons (placeholders — подключим когда будет endpoint)
-  const loadBtn = $("btnMarketLoad");
-  if (loadBtn) loadBtn.addEventListener("click", () => {
-    setHint("marketHint", "MVP: підключимо ринок до API. Зараз це макет.");
-    showToast("Завантаження ринку: підключимо API ендпоінт.");
-  });
-  const prev = $("btnPrev");
-  const next = $("btnNext");
-  if (prev) prev.addEventListener("click", () => showToast("Попередні: підключимо пагінацію до API."));
-  if (next) next.addEventListener("click", () => showToast("Наступні: підключимо пагінацію до API."));
-
-  // initial
   ping();
 
-  // If user already logged in (cookie), show profile mode
-  fetchMe().then((me) => {
-    if (me) {
-      uiAfterLoginOn(me);
-      setTab("account");
-    } else {
-      uiAfterLoginOff();
-    }
-  });
+  // If token exists, try /auth/me
+  if (getToken()) {
+    fetchMe().then((me) => {
+      if (me) {
+        setTab("account");
+      } else {
+        // token invalid -> clear
+        setToken("");
+        uiAfterLoginOff();
+      }
+    });
+  } else {
+    uiAfterLoginOff();
+  }
 
+  // default screen
   setTab("market");
 }
 
