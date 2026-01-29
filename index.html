@@ -1,173 +1,821 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="uk">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SellCase</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>SellCase — Аналітика ринку</title>
 
   <style>
     :root{
-      --bg:#f3f6ff;
+      --bg:#f6f7fb;
       --card:#ffffff;
-      --text:#0f172a;
-      --muted:#64748b;
-      --primary:#2563eb;
-      --border:rgba(15,23,42,.08);
-      --shadow-soft:0 10px 30px rgba(15,23,42,.08);
+      --text:#0b1220;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+
+      --blue:#2563eb;
+      --blue-2:#1d4ed8;
+
+      --shadow: 0 12px 30px rgba(2,6,23,.08);
+      --shadow-soft: 0 8px 18px rgba(2,6,23,.06);
+
+      --r16:16px;
+      --r20:20px;
+      --r24:24px;
     }
 
-    *{box-sizing:border-box}
+    *{ box-sizing:border-box; }
     body{
       margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
-      background:linear-gradient(180deg,#eef2ff 0%,#ffffff 60%);
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       color:var(--text);
+      background:
+        radial-gradient(900px 500px at 15% 0%, rgba(37,99,235,.12), transparent 60%),
+        radial-gradient(900px 500px at 90% 10%, rgba(99,102,241,.10), transparent 60%),
+        var(--bg);
     }
 
-    .wrap{max-width:920px;margin:0 auto;padding:12px 12px 100px}
+    .wrap{
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 14px 14px 92px; /* место под bottom-nav */
+    }
 
+    /* Top App Bar */
     .appbar{
+      background: rgba(255,255,255,.86);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: var(--r24);
+      box-shadow: var(--shadow);
+      padding: 14px 14px;
       display:flex;
-      justify-content:space-between;
       align-items:center;
-      background:var(--card);
-      border-radius:22px;
-      padding:12px 16px;
-      box-shadow:var(--shadow-soft);
-      margin-bottom:14px;
+      justify-content:space-between;
+      gap: 12px;
     }
 
-    .brand{display:flex;gap:12px;align-items:center}
+    .brand{
+      display:flex;
+      align-items:center;
+      gap: 12px;
+      min-width: 240px;
+    }
     .logo{
-      width:44px;height:44px;border-radius:14px;
-      background:#fff;border:1px solid var(--border);
-      display:grid;place-items:center;font-weight:900;color:var(--primary)
+      width:44px;
+      height:44px;
+      border-radius:16px;
+      display:grid;
+      place-items:center;
+      background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(99,102,241,.14));
+      border: 1px solid rgba(15,23,42,.08);
+      overflow:hidden;
+    }
+    .logo img{
+      width: 34px;
+      height: 34px;
+      object-fit: contain;
+      display:block;
+    }
+    .brand h1{
+      margin:0;
+      font-size:16px;
+      line-height:1.15;
+      letter-spacing:-.01em;
+    }
+    .brand p{
+      margin:3px 0 0 0;
+      font-size:12px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .rightbar{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
     }
 
     .status{
-      display:flex;align-items:center;gap:8px;
-      padding:8px 12px;border-radius:999px;
-      background:#f8fafc;border:1px solid var(--border);
-      font-size:13px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding: 10px 12px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-weight: 900;
+      font-size: 12px;
+      box-shadow: var(--shadow-soft);
+      white-space: nowrap;
     }
-    .dot{width:8px;height:8px;border-radius:50%;background:#22c55e}
+    .dot{ width:10px; height:10px; border-radius:50%; background:#94a3b8; }
+    .dot.red{ background:#ef4444; }
+    .dot.green{ background:#22c55e; }
+
+    /* Toast */
+    .toast{
+      display:none;
+      margin-top:12px;
+      padding: 12px 14px;
+      border-radius: var(--r16);
+      border: 1px solid #bbf7d0;
+      background: #dcfce7;
+      font-weight: 900;
+      box-shadow: var(--shadow-soft);
+    }
+    .toast.show{ display:block; }
+
+    .content{ margin-top: 12px; }
 
     .card{
-      background:var(--card);
-      border-radius:24px;
-      padding:16px;
-      box-shadow:var(--shadow-soft);
-      margin-bottom:16px;
+      background: rgba(255,255,255,.86);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: var(--r24);
+      box-shadow: var(--shadow);
+      padding: 16px;
     }
 
-    h2{margin:0 0 6px;font-size:22px}
-    .sub{color:var(--muted);font-size:14px}
+    .section{ display:none; }
+    .section.active{ display:block; }
 
-    /* HERO */
-    .hero{
-      margin-top:14px;
-      padding:16px;
-      border-radius:22px;
-      border:1px solid var(--border);
-      background:#fff;
-      box-shadow:var(--shadow-soft);
+    .title{
+      margin: 0 0 6px 0;
+      font-size: 18px;
+      font-weight: 1100;
+      letter-spacing: -.02em;
+    }
+    .sub{
+      margin: 0 0 12px 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      font-weight: 800;
+    }
+
+    .divider{
+      height: 1px;
+      background: var(--border);
+      margin: 14px 0;
+    }
+
+    /* Forms */
+    .grid2{
       display:grid;
-      grid-template-columns:1.1fr .9fr;
-      gap:16px;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 860px){
+      .grid2{ grid-template-columns: 1fr; }
+    }
+
+    label{
+      display:block;
+      font-weight: 900;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input, select{
+      width:100%;
+      padding: 12px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: white;
+      font-size: 14px;
+      outline: none;
+      box-shadow: 0 1px 0 rgba(2,6,23,.02);
+    }
+    input:focus, select:focus{
+      border-color: rgba(37,99,235,.35);
+      box-shadow: 0 0 0 4px rgba(37,99,235,.10);
+    }
+
+    .field{ display:grid; gap: 6px; }
+    .row{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* Buttons */
+    .btn{
+      border: 1px solid var(--border);
+      background: white;
+      color: var(--text);
+      padding: 12px 14px;
+      border-radius: 14px;
+      font-weight: 1000;
+      cursor: pointer;
+      box-shadow: var(--shadow-soft);
+      user-select: none;
+    }
+    .btn:disabled{ opacity:.55; cursor:not-allowed; }
+    .btn.primary{
+      border-color: transparent;
+      background: linear-gradient(180deg, var(--blue), var(--blue-2));
+      color: white;
+    }
+    .btn.big{
+      padding: 12px 16px;
+      border-radius: 16px;
+    }
+
+    .hint{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .error{
+      display:none;
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: var(--r16);
+      border: 1px solid #fecaca;
+      background: #fee2e2;
+      font-weight: 900;
+      box-shadow: var(--shadow-soft);
+    }
+    .error.show{ display:block; }
+
+    /* Market KPI */
+    .kpiGrid{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+    @media (max-width: 980px){ .kpiGrid{ grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 520px){ .kpiGrid{ grid-template-columns: 1fr; } }
+
+    .kpi{
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--r20);
+      padding: 12px;
+      box-shadow: var(--shadow-soft);
+    }
+    .kpi .k{
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 900;
+    }
+    .kpi .v{
+      margin-top: 6px;
+      font-size: 18px;
+      font-weight: 1200;
+      letter-spacing: -.02em;
+    }
+
+    /* Reliable toggle */
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: white;
+      box-shadow: var(--shadow-soft);
+      font-weight: 900;
+      font-size: 12px;
+      cursor: pointer;
+      user-select:none;
+    }
+    .pill input{ width:auto; margin:0; }
+
+    /* HERO (market) */
+    .hero{
+      margin: 12px 0 10px;
+      padding: 16px;
+      border-radius: 22px;
+      border: 1px solid var(--border);
+      background: white;
+      box-shadow: var(--shadow-soft);
+
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 16px;
       align-items:center;
     }
-    @media(max-width:820px){
-      .hero{grid-template-columns:1fr}
+    @media (max-width: 920px){
+      .hero{ grid-template-columns: 1fr; }
     }
 
-    .hero-left{display:flex;gap:12px;align-items:center}
+    .hero-left{
+      display:flex;
+      gap: 12px;
+      align-items:center;
+      min-width: 240px;
+    }
     .hero-logo{
-      width:64px;height:64px;border-radius:18px;
-      border:1px solid var(--border);
-      padding:6px;background:#fff;object-fit:contain;
+      width:64px;
+      height:64px;
+      border-radius:18px;
+      border: 1px solid var(--border);
+      background:#fff;
+      object-fit:contain;
+      display:block;
+      padding: 6px;
     }
 
-    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-    input,select{
-      padding:12px 14px;border-radius:14px;
-      border:1px solid var(--border);font-size:15px;
-      min-width:200px;flex:1;
+    .hero-right{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+    }
+    .hero-illus{
+      width:100%;
+      max-width: 520px;
+      height:auto;
+      border-radius:18px;
+      border: 1px solid rgba(15,23,42,.06);
+      box-shadow: var(--shadow-soft);
+      background:#fff;
+      display:block;
     }
 
-    .btn{
-      padding:12px 18px;border-radius:14px;
-      border:0;background:#e5edff;color:#1e40af;
-      font-weight:600;
+    .actions{
+      margin-top: 10px;
+      display:flex;
+      gap: 12px;
+      align-items:center;
+      flex-wrap: wrap;
     }
-    .btn.primary{background:var(--primary);color:#fff}
 
+    .saveCard{
+      display:flex;
+      align-items:center;
+      gap: 12px;
+      padding: 12px 12px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.92);
+      box-shadow: var(--shadow-soft);
+    }
+    .saveIcon{
+      width:40px;
+      height:40px;
+      border-radius:14px;
+      display:grid;
+      place-items:center;
+      background: linear-gradient(135deg, rgba(37,99,235,.16), rgba(99,102,241,.12));
+      border: 1px solid rgba(15,23,42,.08);
+      font-size: 18px;
+    }
+    .saveText{ display:grid; gap:2px; }
+    .saveText .t{ font-weight:1200; font-size:13px; letter-spacing:-.01em; }
+    .saveText .d{ font-weight:800; font-size:12px; color:var(--muted); }
+
+    /* Feature cards (inside market) */
+    .features{
+      margin-top: 12px;
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 980px){ .features{ grid-template-columns: 1fr; } }
+
+    .feature{
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: var(--shadow-soft);
+      overflow:hidden;
+    }
+    .feature .img{
+      width:100%;
+      height:auto;
+      display:block;
+    }
+    .feature .cap{
+      padding: 12px 12px 14px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 10px;
+    }
+    .feature .cap .t{
+      font-weight: 1200;
+      letter-spacing: -.02em;
+    }
+    .feature .cap .d{
+      margin-top: 4px;
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    /* Illustration for section (Queries) */
+    .section-illus{
+      margin-top:14px;
+      width:100%;
+      max-width:760px;
+      height:auto;
+      display:block;
+      margin-left:auto;
+      margin-right:auto;
+      border-radius:22px;
+      border: 1px solid rgba(15,23,42,.06);
+      box-shadow: var(--shadow-soft);
+      background:#fff;
+    }
+
+    /* Bottom Nav */
     .bottom-nav{
-      position:fixed;left:0;right:0;bottom:0;
-      background:#fff;border-top:1px solid var(--border);
-      padding:10px 12px;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(255,255,255,.90);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      z-index: 200;
     }
-    .navgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .bottom-nav .navgrid{
+      max-width: 1040px;
+      margin: 0 auto;
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
     .tab{
-      padding:10px;border-radius:14px;
-      border:1px solid var(--border);
-      background:#fff;font-size:13px;
+      border: 1px solid var(--border);
+      background: white;
+      border-radius: 16px;
+      padding: 10px 8px;
+      font-weight: 1100;
+      cursor: pointer;
+      box-shadow: var(--shadow-soft);
+
+      display:flex;
+      flex-direction: column;
+      align-items:center;
+      justify-content:center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text);
+      user-select:none;
     }
-    .tab.active{background:#eef2ff;border-color:#c7d2fe}
+    .tab.active{
+      border-color: rgba(37,99,235,.35);
+      box-shadow: 0 0 0 4px rgba(37,99,235,.10), var(--shadow-soft);
+    }
+    .tab .ico{ font-size: 16px; line-height: 1; }
   </style>
 </head>
 
 <body>
   <div class="wrap">
 
+    <!-- APP BAR -->
     <div class="appbar">
       <div class="brand">
-        <div class="logo">📊</div>
+        <div class="logo">
+          <img src="./assets/sellcase-logo.png" alt="SellCase logo" />
+        </div>
         <div>
-          <strong>SellCase</strong>
-          <div class="sub">Аналітика ринку OLX: ціни, зрізи, динаміка</div>
+          <h1>SellCase</h1>
+          <p>Аналітика ринку OLX: ціни, зрізи, динаміка</p>
         </div>
       </div>
-      <div class="status"><span class="dot"></span> Сервер OK</div>
+
+      <div class="rightbar">
+        <div class="status" id="serverStatus">
+          <span class="dot"></span>
+          <span>Перевірка...</span>
+        </div>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Ринок</h2>
-      <p class="sub">
-        Оберіть проект і завантажте аналітику. Ми покажемо типову ціну та ціновий коридор.
-      </p>
+    <!-- TOAST -->
+    <div class="toast" id="toast"></div>
 
-      <div class="hero">
-        <div class="hero-left">
-          <img class="hero-logo" src="./assets/sellcase-logo.png" />
+    <div class="content">
+
+      <!-- ============ MARKET ============ -->
+      <div class="card section active" id="section-market">
+        <h2 class="title">Ринок</h2>
+        <p class="sub">Оберіть проект і завантажте аналітику. Ми покажемо типову ціну та ціновий коридор.</p>
+
+        <!-- HERO -->
+        <div class="hero">
           <div>
-            <div style="font-weight:800">SellCase Market Snapshot</div>
-            <div class="sub">Оберіть проект → завантажте зріз → збережіть запит</div>
+            <div class="hero-left">
+              <img id="brandLogo" class="hero-logo" src="./assets/sellcase-logo.png" alt="SellCase" />
+              <div>
+                <div style="font-weight:1200; font-size:16px; letter-spacing:-.02em;">SellCase Market Snapshot</div>
+                <div class="hint">3 кроки: проект → “Завантажити” → “Зберегти”</div>
+              </div>
+            </div>
+
+            <div class="actions">
+              <div class="saveCard">
+                <div class="saveIcon">⭐</div>
+                <div class="saveText">
+                  <div class="t">Зберегти запит</div>
+                  <div class="d">Щоб швидко повторити аналіз пізніше</div>
+                </div>
+                <button class="btn primary big" type="button" id="btnSaveQuery">Зберегти</button>
+              </div>
+
+              <div class="hint">Порада: спочатку оберіть проект і натисніть “Завантажити”.</div>
+            </div>
+          </div>
+
+          <div class="hero-right">
+            <img class="hero-illus" src="./assets/hero-emptystate-grn.png" alt="Hero illustration" />
           </div>
         </div>
 
-        <div>
-          <img src="./assets/hero-analytics-2-2780grn.png"
-               style="width:100%;border-radius:16px;">
+        <!-- FORM -->
+        <div class="grid2">
+          <div class="field">
+            <label for="marketProject">Проект</label>
+            <select id="marketProject"></select>
+          </div>
+
+          <div class="field">
+            <label for="marketPoints">Кількість точок</label>
+            <input id="marketPoints" type="number" min="5" max="30" value="30" />
+          </div>
+
+          <div class="field">
+            <label for="marketOffset">Зсув (для історії)</label>
+            <input id="marketOffset" type="number" min="0" value="0" />
+          </div>
+
+          <div class="field">
+            <label>&nbsp;</label>
+            <label class="pill">
+              <input id="marketReliable" type="checkbox" />
+              Показувати тільки надійні дані
+            </label>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px;">
+          <button class="btn primary" id="btnMarketLoad" type="button">Завантажити</button>
+
+          <!-- Попередні/Наступні в одну строку -->
+          <div class="row" style="gap:10px;">
+            <button class="btn" id="btnPrev" type="button">◀ Попередні</button>
+            <button class="btn" id="btnNext" type="button">Наступні ▶</button>
+          </div>
+
+          <span class="hint" id="marketHint"></span>
+        </div>
+
+        <!-- KPI -->
+        <div class="kpiGrid" id="marketKpi">
+          <div class="kpi">
+            <div class="k">Типова ціна</div>
+            <div class="v" id="kpiTypical">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Зміна типової ціни</div>
+            <div class="v" id="kpiDelta">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Діапазон ринку</div>
+            <div class="v" id="kpiRange">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Кількість оголошень</div>
+            <div class="v" id="kpiCount">—</div>
+          </div>
+        </div>
+
+        <div class="error" id="marketError"></div>
+
+        <!-- Feature images (selling look) -->
+        <div class="features">
+          <div class="feature">
+            <img class="img" src="./assets/feature-search.png" alt="Пошук" />
+            <div class="cap">
+              <div>
+                <div class="t">Пошук</div>
+                <div class="d">Швидко знаходьте товар і бачте динаміку попиту.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="feature">
+            <img class="img" src="./assets/feature-price-2780grn.png" alt="Ціна" />
+            <div class="cap">
+              <div>
+                <div class="t">Ціна</div>
+                <div class="d">Типова ціна та коридор — для впевнених рішень.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="feature">
+            <img class="img" src="./assets/feature-trends.png" alt="Тренди" />
+            <div class="cap">
+              <div>
+                <div class="t">Тренди</div>
+                <div class="d">Підказки по змінах, щоб ловити моменти.</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="row">
-        <select>
-          <option>Оберіть проект</option>
-        </select>
-        <button class="btn primary">Завантажити</button>
+      <!-- ============ QUERIES ============ -->
+      <div class="card section" id="section-queries">
+        <h2 class="title">Запити</h2>
+        <p class="sub">Зручні шаблони та збережені запити (як у конкурентів). Підключимо до API по мірі готовності.</p>
+
+        <div class="row" style="margin-top:10px;">
+          <input id="queryText" placeholder="Напр.: iPhone 13, дитяча коляска, шуруповерт..." />
+          <select id="queryCategory" style="max-width:220px;">
+            <option value="">Категорія (всі)</option>
+            <option>Електроніка</option>
+            <option>Дім і сад</option>
+            <option>Дитячі товари</option>
+            <option>Авто</option>
+            <option>Одяг</option>
+          </select>
+          <button class="btn primary" id="btnRunQuery" type="button">Запустити</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 style="margin:0 0 8px 0; font-weight:1100;">Збережені запити</h3>
+        <div id="savedQueries" class="hint">—</div>
+
+        <!-- Иллюстрация, чтобы не было пусто -->
+        <img class="section-illus" src="./assets/hero-analytics-2-2780grn.png" alt="Queries illustration" />
       </div>
-    </div>
 
+      <!-- ============ PROJECTS ============ -->
+      <div class="card section" id="section-projects">
+        <h2 class="title">Проекти</h2>
+        <p class="sub">Список проектів з API (використовується і в Ринку). Якщо API не підтягується — спершу “оживимо” парсер.</p>
+
+        <div class="row">
+          <button class="btn primary" id="btnProjectsReload" type="button">Оновити список</button>
+          <span class="hint" id="projectsInfo"></span>
+        </div>
+
+        <div class="divider"></div>
+
+        <div id="projectsList" class="hint">—</div>
+        <div class="error" id="projectsError"></div>
+      </div>
+
+      <!-- ============ ACCOUNT ============ -->
+      <div class="card section" id="section-account">
+        <h2 class="title">Аккаунт</h2>
+        <p class="sub">Вхід/реєстрація. Після успішного входу форми зникнуть і відкриється профіль.</p>
+
+        <!-- FORMS -->
+        <div id="authForms">
+          <div class="grid2">
+            <!-- LOGIN -->
+            <div>
+              <h3 style="margin:0 0 10px 0; font-weight:1100;">Вхід</h3>
+
+              <form id="loginForm">
+                <div class="field">
+                  <label>Email</label>
+                  <input id="loginEmail" type="email" autocomplete="email" />
+                </div>
+
+                <div class="field" style="margin-top:10px;">
+                  <label>Пароль</label>
+                  <input id="loginPassword" type="password" autocomplete="current-password" />
+                </div>
+
+                <div class="row" style="margin-top:10px;">
+                  <button class="btn primary" id="btnLogin" type="submit">Увійти</button>
+                  <span class="hint" id="loginInfo"></span>
+                </div>
+              </form>
+            </div>
+
+            <!-- REGISTER -->
+            <div id="registerBlock">
+              <h3 style="margin:0 0 10px 0; font-weight:1100;">Реєстрація</h3>
+
+              <form id="registerForm">
+                <div class="field">
+                  <label>Імʼя</label>
+                  <input id="regFirstName" />
+                </div>
+
+                <div class="field" style="margin-top:10px;">
+                  <label>Прізвище</label>
+                  <input id="regLastName" />
+                </div>
+
+                <div class="field" style="margin-top:10px;">
+                  <label>Email</label>
+                  <input id="regEmail" type="email" autocomplete="email" />
+                </div>
+
+                <div class="field" style="margin-top:10px;">
+                  <label>Пароль</label>
+                  <input id="regPassword" type="password" autocomplete="new-password" />
+                </div>
+
+                <div class="row" style="margin-top:10px;">
+                  <button class="btn primary" id="btnRegister" type="submit">Створити акаунт</button>
+                </div>
+
+                <div class="hint" style="margin-top:10px;">
+                  Далі додамо: Google / Facebook тощо.
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div class="error" id="accountError"></div>
+        </div>
+
+        <!-- AFTER LOGIN -->
+        <div id="authDone" style="display:none; margin-top:10px;">
+          <div style="
+            padding:14px;
+            border-radius:22px;
+            border:1px solid var(--border);
+            background:white;
+            box-shadow: var(--shadow-soft);
+            display:flex; gap:12px; align-items:center; justify-content:space-between;
+            flex-wrap:wrap;
+          ">
+            <div style="display:flex; gap:12px; align-items:center;">
+              <div id="userAvatar" style="
+                width:54px;height:54px;border-radius:18px;
+                display:grid;place-items:center;
+                background: linear-gradient(135deg, rgba(37,99,235,.22), rgba(99,102,241,.16));
+                border:1px solid rgba(15,23,42,.08);
+                font-weight:1200;
+                font-size:16px;
+              ">U</div>
+
+              <div>
+                <div id="userTitle" style="font-weight:1200; font-size:16px;">Користувач</div>
+                <div id="userSubtitle" class="hint">✅ Вхід успішно виконано.</div>
+              </div>
+            </div>
+
+            <div class="row">
+              <button class="btn" id="btnGoMarket" type="button">Перейти до Ринку</button>
+              <button class="btn" id="btnLogout" type="button">Вийти</button>
+            </div>
+          </div>
+
+          <div class="kpiGrid" style="margin-top:12px;">
+            <div class="kpi">
+              <div class="k">User ID</div>
+              <div class="v" id="meId">—</div>
+            </div>
+            <div class="kpi">
+              <div class="k">Створено</div>
+              <div class="v" id="meCreated">—</div>
+            </div>
+            <div class="kpi">
+              <div class="k">Статус</div>
+              <div class="v" id="meActive">—</div>
+            </div>
+            <div class="kpi">
+              <div class="k">Роль</div>
+              <div class="v">Користувач</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
 
-  <div class="bottom-nav">
+  <!-- Bottom navigation -->
+  <div class="bottom-nav" id="nav">
     <div class="navgrid">
-      <button class="tab active">📊 Ринок</button>
-      <button class="tab">🔎 Запити</button>
-      <button class="tab">☰ Проекти</button>
-      <button class="tab">👤 Аккаунт</button>
+      <button class="tab active" data-tab="market" type="button">
+        <span class="ico">📊</span><span>Ринок</span>
+      </button>
+      <button class="tab" data-tab="queries" type="button">
+        <span class="ico">🔎</span><span>Запити</span>
+      </button>
+      <button class="tab" data-tab="projects" type="button">
+        <span class="ico">≡</span><span>Проекти</span>
+      </button>
+      <button class="tab" data-tab="account" type="button">
+        <span class="ico">👤</span><span>Аккаунт</span>
+      </button>
     </div>
   </div>
+
+  <script src="./app.js"></script>
 </body>
-  </html>
+</html>
