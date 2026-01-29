@@ -1,820 +1,697 @@
-<!doctype html>
-<html lang="uk">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>SellCase — Аналітика ринку</title>
+/* ========= SellCase app.js (stable UX + timeout/retry + friendly errors) ========= */
 
-  <style>
-    :root{
-      --bg:#f6f7fb;
-      --card:#ffffff;
-      --text:#0b1220;
-      --muted:#6b7280;
-      --border:#e5e7eb;
+const API_BASE = "https://sellcase-backend.onrender.com"; // backend
+const ENDPOINTS = {
+  health: "/health",
+  register: "/auth/register",
+  login: "/auth/login",
+  me: "/auth/me",
+  metricsSummary: "/metrics/summary",
+};
 
-      --blue:#2563eb;
-      --blue-2:#1d4ed8;
+const LS_KEY = "sellcase_saved_queries_v1";
+const LS_TOKEN = "sellcase_token_v1";
 
-      --shadow: 0 12px 30px rgba(2,6,23,.08);
-      --shadow-soft: 0 8px 18px rgba(2,6,23,.06);
+const TIMEOUT_MS = 15000;     // 15s for Render cold start
+const PING_RETRIES = 2;       // retry ping a couple times
+const PING_INTERVAL_MS = 30000;
 
-      --r16:16px;
-      --r20:20px;
-      --r24:24px;
-    }
+const $ = (id) => document.getElementById(id);
 
-    *{ box-sizing:border-box; }
-    body{
-      margin:0;
-      font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      color:var(--text);
-      background:
-        radial-gradient(900px 500px at 15% 0%, rgba(37,99,235,.12), transparent 60%),
-        radial-gradient(900px 500px at 90% 10%, rgba(99,102,241,.10), transparent 60%),
-        var(--bg);
-    }
+const state = {
+  me: null,
+  marketCursor: 0,
+};
 
-    .wrap{
-      max-width: 1040px;
-      margin: 0 auto;
-      padding: 14px 14px 92px; /* место под bottom-nav */
-    }
+function buildUrl(path) {
+  return API_BASE.replace(/\/$/, "") + path;
+}
 
-    /* Top App Bar */
-    .appbar{
-      background: rgba(255,255,255,.86);
-      backdrop-filter: blur(10px);
-      border: 1px solid var(--border);
-      border-radius: var(--r24);
-      box-shadow: var(--shadow);
-      padding: 14px 14px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap: 12px;
-    }
+/* ========= Token ========= */
 
-    .brand{
-      display:flex;
-      align-items:center;
-      gap: 12px;
-      min-width: 240px;
-    }
-    .logo{
-      width:44px;
-      height:44px;
-      border-radius:16px;
-      display:grid;
-      place-items:center;
-      background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(99,102,241,.14));
-      border: 1px solid rgba(15,23,42,.08);
-      overflow:hidden;
-    }
-    .logo img{
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      display:block;
-    }
-    .brand h1{
-      margin:0;
-      font-size:16px;
-      line-height:1.15;
-      letter-spacing:-.01em;
-    }
-    .brand p{
-      margin:3px 0 0 0;
-      font-size:12px;
-      color: var(--muted);
-      font-weight: 800;
-    }
+function setToken(token) {
+  if (token) localStorage.setItem(LS_TOKEN, token);
+  else localStorage.removeItem(LS_TOKEN);
+}
+function getToken() {
+  return localStorage.getItem(LS_TOKEN) || "";
+}
 
-    .rightbar{
-      display:flex;
-      align-items:center;
-      gap: 10px;
-      flex-wrap:wrap;
-      justify-content:flex-end;
-    }
+/* ========= UI ========= */
 
-    .status{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      padding: 10px 12px;
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      font-weight: 900;
-      font-size: 12px;
-      box-shadow: var(--shadow-soft);
-      white-space: nowrap;
-    }
-    .dot{ width:10px; height:10px; border-radius:50%; background:#94a3b8; }
-    .dot.red{ background:#ef4444; }
-    .dot.green{ background:#22c55e; }
+function showToast(msg) {
+  const t = $("toast");
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 3500);
+}
 
-    /* Toast */
-    .toast{
-      display:none;
-      margin-top:12px;
-      padding: 12px 14px;
-      border-radius: var(--r16);
-      border: 1px solid #bbf7d0;
-      background: #dcfce7;
-      font-weight: 900;
-      box-shadow: var(--shadow-soft);
-    }
-    .toast.show{ display:block; }
+function setError(el, msg) {
+  if (!el) return;
+  el.textContent = msg || "";
+  el.classList.toggle("show", !!msg);
+}
 
-    .content{ margin-top: 12px; }
+function setHint(id, msg) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = msg || "";
+}
 
-    .card{
-      background: rgba(255,255,255,.86);
-      backdrop-filter: blur(10px);
-      border: 1px solid var(--border);
-      border-radius: var(--r24);
-      box-shadow: var(--shadow);
-      padding: 16px;
-    }
+function setServerStatus(stateText) {
+  const el = $("serverStatus");
+  if (!el) return;
 
-    .section{ display:none; }
-    .section.active{ display:block; }
+  const dot = el.querySelector(".dot");
+  const text = el.querySelector("span:last-child");
+  if (!dot || !text) return;
 
-    .title{
-      margin: 0 0 6px 0;
-      font-size: 18px;
-      font-weight: 1100;
-      letter-spacing: -.02em;
-    }
-    .sub{
-      margin: 0 0 12px 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.35;
-      font-weight: 800;
-    }
+  dot.classList.remove("red", "green");
 
-    .divider{
-      height: 1px;
-      background: var(--border);
-      margin: 14px 0;
-    }
+  if (stateText === "online") {
+    dot.classList.add("green");
+    text.textContent = "Online";
+  } else if (stateText === "offline") {
+    dot.classList.add("red");
+    text.textContent = "Offline";
+  } else {
+    text.textContent = "Connecting…";
+  }
+}
 
-    /* Forms */
-    .grid2{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-    @media (max-width: 860px){
-      .grid2{ grid-template-columns: 1fr; }
-    }
+function initialsFrom(fullName, email) {
+  const n = String(fullName || "").trim();
+  if (n && n !== "Користувач") {
+    const parts = n.split(/\s+/).slice(0, 2);
+    return parts.map(p => (p[0] || "").toUpperCase()).join("") || "U";
+  }
+  const e = String(email || "").trim();
+  return e ? e[0].toUpperCase() : "U";
+}
 
-    label{
-      display:block;
-      font-weight: 900;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    input, select{
-      width:100%;
-      padding: 12px 12px;
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      background: white;
-      font-size: 14px;
-      outline: none;
-      box-shadow: 0 1px 0 rgba(2,6,23,.02);
-    }
-    input:focus, select:focus{
-      border-color: rgba(37,99,235,.35);
-      box-shadow: 0 0 0 4px rgba(37,99,235,.10);
-    }
+function formatDateISO(iso) {
+  if (!iso) return "—";
+  return String(iso).replace("T", " ").replace("Z", "").slice(0, 19);
+}
 
-    .field{ display:grid; gap: 6px; }
-    .row{
-      display:flex;
-      align-items:center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
+function uiAfterLoginOn(meLike) {
+  const forms = $("authForms");
+  if (forms) forms.style.display = "none";
 
-    /* Buttons */
-    .btn{
-      border: 1px solid var(--border);
-      background: white;
-      color: var(--text);
-      padding: 12px 14px;
-      border-radius: 14px;
-      font-weight: 1000;
-      cursor: pointer;
-      box-shadow: var(--shadow-soft);
-      user-select: none;
-    }
-    .btn:disabled{ opacity:.55; cursor:not-allowed; }
-    .btn.primary{
-      border-color: transparent;
-      background: linear-gradient(180deg, var(--blue), var(--blue-2));
-      color: white;
-    }
-    .btn.big{
-      padding: 12px 16px;
-      border-radius: 16px;
-    }
+  const done = $("authDone");
+  if (done) done.style.display = "block";
 
-    .hint{
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 800;
-    }
+  const email =
+    meLike?.email ||
+    (document.getElementById("loginEmail")?.value || "").trim();
 
-    .error{
-      display:none;
-      margin-top: 12px;
-      padding: 12px 14px;
-      border-radius: var(--r16);
-      border: 1px solid #fecaca;
-      background: #fee2e2;
-      font-weight: 900;
-      box-shadow: var(--shadow-soft);
-    }
-    .error.show{ display:block; }
+  const full =
+    meLike?.full_name ||
+    meLike?.fullName ||
+    meLike?.full ||
+    "Користувач";
 
-    /* Market KPI */
-    .kpiGrid{
-      display:grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      margin-top: 14px;
-    }
-    @media (max-width: 980px){ .kpiGrid{ grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 520px){ .kpiGrid{ grid-template-columns: 1fr; } }
+  const av = $("userAvatar");
+  const title = $("userTitle");
+  const sub = $("userSubtitle");
 
-    .kpi{
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: var(--r20);
-      padding: 12px;
-      box-shadow: var(--shadow-soft);
-    }
-    .kpi .k{
-      font-size: 12px;
-      color: var(--muted);
-      font-weight: 900;
-    }
-    .kpi .v{
-      margin-top: 6px;
-      font-size: 18px;
-      font-weight: 1200;
-      letter-spacing: -.02em;
-    }
+  if (title) title.textContent = full || "Користувач";
+  if (sub) sub.textContent = "✅ Вхід виконано.";
+  if (av) av.textContent = initialsFrom(full, email);
 
-    /* Reliable toggle */
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding: 8px 10px;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: white;
-      box-shadow: var(--shadow-soft);
-      font-weight: 900;
-      font-size: 12px;
-      cursor: pointer;
-      user-select:none;
-    }
-    .pill input{ width:auto; margin:0; }
+  if ($("meId")) $("meId").textContent = String(meLike?.id ?? "—");
+  if ($("meCreated")) $("meCreated").textContent = formatDateISO(meLike?.created_at);
+  if ($("meActive")) {
+    $("meActive").textContent =
+      meLike?.is_active === true ? "Активний" :
+      meLike?.is_active === false ? "Неактивний" : "—";
+  }
+}
 
-    /* HERO (market) */
-    .hero{
-      margin: 12px 0 10px;
-      padding: 16px;
-      border-radius: 22px;
-      border: 1px solid var(--border);
-      background: white;
-      box-shadow: var(--shadow-soft);
+function uiAfterLoginOff() {
+  const forms = $("authForms");
+  if (forms) forms.style.display = "block";
 
-      display:grid;
-      grid-template-columns: 1.1fr .9fr;
-      gap: 16px;
-      align-items:center;
-    }
-    @media (max-width: 920px){
-      .hero{ grid-template-columns: 1fr; }
-    }
+  const done = $("authDone");
+  if (done) done.style.display = "none";
 
-    .hero-left{
-      display:flex;
-      gap: 12px;
-      align-items:center;
-      min-width: 240px;
-    }
-    .hero-logo{
-      width:64px;
-      height:64px;
-      border-radius:18px;
-      border: 1px solid var(--border);
-      background:#fff;
-      object-fit:contain;
-      display:block;
-      padding: 6px;
-    }
+  setHint("loginInfo", "");
+}
 
-    .hero-right{
-      display:flex;
-      justify-content:center;
-      align-items:center;
-    }
-    .hero-illus{
-      width:100%;
-      max-width: 520px;
-      height:auto;
-      border-radius:18px;
-      border: 1px solid rgba(15,23,42,.06);
-      box-shadow: var(--shadow-soft);
-      background:#fff;
-      display:block;
-    }
+/* ========= Networking (timeout + friendly messages) ========= */
 
-    .actions{
-      margin-top: 10px;
-      display:flex;
-      gap: 12px;
-      align-items:center;
-      flex-wrap: wrap;
-    }
+function authHeaders(extra = {}) {
+  const token = getToken();
+  return token
+    ? { Authorization: `Bearer ${token}`, ...extra }
+    : { ...extra };
+}
 
-    .saveCard{
-      display:flex;
-      align-items:center;
-      gap: 12px;
-      padding: 12px 12px;
-      border-radius: 18px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,.92);
-      box-shadow: var(--shadow-soft);
-    }
-    .saveIcon{
-      width:40px;
-      height:40px;
-      border-radius:14px;
-      display:grid;
-      place-items:center;
-      background: linear-gradient(135deg, rgba(37,99,235,.16), rgba(99,102,241,.12));
-      border: 1px solid rgba(15,23,42,.08);
-      font-size: 18px;
-    }
-    .saveText{ display:grid; gap:2px; }
-    .saveText .t{ font-weight:1200; font-size:13px; letter-spacing:-.01em; }
-    .saveText .d{ font-weight:800; font-size:12px; color:var(--muted); }
+async function fetchWithTimeout(url, init, timeoutMs = TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+}
 
-    /* Feature cards (inside market) */
-    .features{
-      margin-top: 12px;
-      display:grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-    }
-    @media (max-width: 980px){ .features{ grid-template-columns: 1fr; } }
+function userFriendlyError(err) {
+  const msg = String(err?.message || err || "");
 
-    .feature{
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: var(--shadow-soft);
-      overflow:hidden;
-    }
-    .feature .img{
-      width:100%;
-      height:auto;
-      display:block;
-    }
-    .feature .cap{
-      padding: 12px 12px 14px;
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap: 10px;
-    }
-    .feature .cap .t{
-      font-weight: 1200;
-      letter-spacing: -.02em;
-    }
-    .feature .cap .d{
-      margin-top: 4px;
-      color: var(--muted);
-      font-weight: 800;
-      font-size: 12px;
-      line-height: 1.35;
-    }
+  // Abort / timeout
+  if (msg.toLowerCase().includes("aborted") || msg.toLowerCase().includes("abort")) {
+    return "Сервер відповідає занадто довго. Спробуйте ще раз.";
+  }
 
-    /* Illustration for section (Queries) */
-    .section-illus{
-      margin-top:14px;
-      width:100%;
-      max-width:760px;
-      height:auto;
-      display:block;
-      margin-left:auto;
-      margin-right:auto;
-      border-radius:22px;
-      border: 1px solid rgba(15,23,42,.06);
-      box-shadow: var(--shadow-soft);
-      background:#fff;
-    }
+  // Network/CORS
+  if (msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("networkerror")) {
+    return "Сервіс тимчасово недоступний. Перевірте інтернет або спробуйте ще раз через хвилину.";
+  }
 
-    /* Bottom Nav */
-    .bottom-nav{
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-      background: rgba(255,255,255,.90);
-      backdrop-filter: blur(12px);
-      border-top: 1px solid var(--border);
-      z-index: 200;
-    }
-    .bottom-nav .navgrid{
-      max-width: 1040px;
-      margin: 0 auto;
-      display:grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-    }
-    .tab{
-      border: 1px solid var(--border);
-      background: white;
-      border-radius: 16px;
-      padding: 10px 8px;
-      font-weight: 1100;
-      cursor: pointer;
-      box-shadow: var(--shadow-soft);
+  // HTTP explicit
+  if (msg.startsWith("HTTP 401")) return "Невірний логін або пароль.";
+  if (msg.startsWith("HTTP 403")) return "Доступ заборонено.";
+  if (msg.startsWith("HTTP 404")) return "Функція тимчасово недоступна.";
+  if (msg.startsWith("HTTP 422")) return "Перевірте правильність введених даних.";
+  if (msg.startsWith("HTTP 5")) return "Помилка сервера. Спробуйте пізніше.";
 
-      display:flex;
-      flex-direction: column;
-      align-items:center;
-      justify-content:center;
-      gap: 4px;
-      font-size: 11px;
-      color: var(--text);
-      user-select:none;
-    }
-    .tab.active{
-      border-color: rgba(37,99,235,.35);
-      box-shadow: 0 0 0 4px rgba(37,99,235,.10), var(--shadow-soft);
-    }
-    .tab .ico{ font-size: 16px; line-height: 1; }
-  </style>
-</head>
+  // Backend-provided detail (keep short)
+  return msg || "Сталася помилка. Спробуйте ще раз.";
+}
 
-<body>
-  <div class="wrap">
+async function apiFetchJson(path, { method = "GET", body = null, headers = {} } = {}) {
+  const url = buildUrl(path);
 
-    <!-- APP BAR -->
-    <div class="appbar">
-      <div class="brand">
-        <div class="logo">
-          <img src="./assets/sellcase-logo.png" alt="SellCase logo" />
-        </div>
+  const init = {
+    method,
+    headers: authHeaders({ ...headers }),
+    // IMPORTANT: token auth -> no cookies needed, reduces CORS issues
+    credentials: "omit",
+  };
+
+  if (body !== null) {
+    init.headers = authHeaders({
+      "Content-Type": "application/json",
+      ...headers,
+    });
+    init.body = JSON.stringify(body);
+  }
+
+  let res;
+  try {
+    res = await fetchWithTimeout(url, init);
+  } catch (e) {
+    console.warn("[apiFetchJson] network/timeout:", url, e);
+    throw new Error(userFriendlyError(e));
+  }
+
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text || null;
+  }
+
+  if (!res.ok) {
+    const rawMsg =
+      (data && (data.detail || data.message || data.error)) ||
+      (typeof data === "string" ? data : null) ||
+      `HTTP ${res.status}`;
+
+    console.warn("[apiFetchJson] http error:", url, res.status, rawMsg);
+    throw new Error(`HTTP ${res.status}: ${rawMsg}`);
+  }
+
+  return data;
+}
+
+async function apiFetchForm(path, formParams) {
+  const url = buildUrl(path);
+
+  const body = new URLSearchParams();
+  Object.entries(formParams || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) body.append(k, String(v));
+  });
+
+  let res;
+  try {
+    res = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/x-www-form-urlencoded" }),
+      body,
+      credentials: "omit",
+    });
+  } catch (e) {
+    console.warn("[apiFetchForm] network/timeout:", url, e);
+    throw new Error(userFriendlyError(e));
+  }
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = text || null; }
+
+    const rawMsg =
+      (data && (data.detail || data.message || data.error)) ||
+      (typeof data === "string" ? data : null) ||
+      `HTTP ${res.status}`;
+
+    console.warn("[apiFetchForm] http error:", url, res.status, rawMsg);
+    throw new Error(`HTTP ${res.status}: ${rawMsg}`);
+  }
+
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return text || null;
+  }
+}
+
+/* ========= NAV ========= */
+
+function setTab(tab) {
+  document.querySelectorAll(".tab").forEach((b) => {
+    b.classList.toggle("active", b.dataset.tab === tab);
+  });
+  document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
+  const sec = document.getElementById(`section-${tab}`);
+  if (sec) sec.classList.add("active");
+}
+
+function initNav() {
+  const nav = $("nav");
+  if (!nav) return;
+
+  nav.addEventListener("click", (e) => {
+    const btn = e.target.closest(".tab");
+    if (!btn) return;
+    setTab(btn.dataset.tab);
+  });
+}
+
+/* ========= AUTH ========= */
+
+async function fetchMe() {
+  try {
+    const me = await apiFetchJson(ENDPOINTS.me);
+    state.me = me;
+    uiAfterLoginOn(me);
+    return me;
+  } catch (e) {
+    state.me = null;
+    return null;
+  }
+}
+
+function extractToken(loginResponse) {
+  return (
+    loginResponse?.access_token ||
+    loginResponse?.token ||
+    loginResponse?.jwt ||
+    ""
+  );
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+
+  const errEl = $("accountError");
+  setError(errEl, "");
+
+  const btn = $("btnRegister");
+  if (btn) btn.disabled = true;
+
+  const first = ($("regFirstName")?.value || "").trim();
+  const last = ($("regLastName")?.value || "").trim();
+  const email = ($("regEmail")?.value || "").trim();
+  const password = $("regPassword")?.value || "";
+
+  try {
+    if (!first || !last) throw new Error("Вкажіть імʼя та прізвище.");
+    if (!email) throw new Error("Вкажіть email.");
+    if (!password || password.length < 8) throw new Error("Пароль має містити мінімум 8 символів.");
+
+    await apiFetchJson(ENDPOINTS.register, {
+      method: "POST",
+      body: { email, full_name: `${first} ${last}`.trim(), password },
+    });
+
+    showToast("✅ Реєстрація успішна. Тепер увійдіть.");
+    const regBlock = $("registerBlock");
+    if (regBlock) regBlock.style.display = "none";
+
+    if ($("loginEmail")) $("loginEmail").value = email;
+    if ($("loginPassword")) $("loginPassword").value = "";
+    setHint("loginInfo", "✅ Реєстрація успішна. Увійдіть у акаунт.");
+
+  } catch (err) {
+    setError(errEl, userFriendlyError(err));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+
+  const errEl = $("accountError");
+  setError(errEl, "");
+  setHint("loginInfo", "");
+
+  const btn = $("btnLogin");
+  if (btn) btn.disabled = true;
+
+  const email = ($("loginEmail")?.value || "").trim();
+  const password = $("loginPassword")?.value || "";
+
+  try {
+    if (!email || !password) throw new Error("Вкажіть email та пароль.");
+
+    const loginRes = await apiFetchForm(ENDPOINTS.login, { username: email, password });
+
+    const token = extractToken(loginRes);
+    if (!token) throw new Error("Не вдалося отримати токен доступу. Спробуйте ще раз.");
+
+    setToken(token);
+
+    uiAfterLoginOn({ email, full_name: "Користувач" });
+
+    const me = await fetchMe();
+    if (!me) throw new Error("Не вдалося завантажити профіль. Спробуйте ще раз.");
+
+    showToast("✅ Вхід виконано.");
+    setTab("account");
+
+  } catch (err) {
+    setToken("");
+    uiAfterLoginOff();
+    setError(errEl, userFriendlyError(err));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function handleLogout() {
+  const errEl = $("accountError");
+  setError(errEl, "");
+
+  const btn = $("btnLogout");
+  if (btn) btn.disabled = true;
+
+  try {
+    setToken("");
+    state.me = null;
+    uiAfterLoginOff();
+    showToast("Ви вийшли з акаунта.");
+    setTab("account");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function initAuth() {
+  const loginForm = $("loginForm");
+  const regForm = $("registerForm");
+  const logoutBtn = $("btnLogout");
+
+  if (loginForm) loginForm.addEventListener("submit", handleLogin);
+  if (regForm) regForm.addEventListener("submit", handleRegister);
+  if (logoutBtn) logoutBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    handleLogout();
+  });
+
+  const go = $("btnGoMarket");
+  if (go) go.addEventListener("click", (e) => {
+    e.preventDefault();
+    setTab("market");
+  });
+}
+
+/* ========= Saved Queries ========= */
+
+function getSavedQueries() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); }
+  catch { return []; }
+}
+
+function setSavedQueries(items) {
+  localStorage.setItem(LS_KEY, JSON.stringify(items));
+}
+
+function renderSavedQueries() {
+  const box = $("savedQueries");
+  if (!box) return;
+
+  const items = getSavedQueries();
+  if (!items.length) {
+    box.textContent = "Поки немає збережених запитів.";
+    return;
+  }
+
+  box.innerHTML = items.map((q, i) => {
+    const title = `${q.text || "—"}${q.category ? " · " + q.category : ""}`;
+    return `
+      <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
         <div>
-          <h1>SellCase</h1>
-          <p>Аналітика ринку OLX: ціни, зрізи, динаміка.</p>
+          <div style="font-weight:1100;">${title}</div>
+          <div class="hint">points: ${q.points ?? "—"}, reliable: ${q.reliable ? "так" : "ні"}, offset: ${q.offset ?? 0}</div>
         </div>
-      </div>
-
-      <div class="rightbar">
-        <div class="status" id="serverStatus">
-          <span class="dot"></span>
-          <span>Перевірка...</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- TOAST -->
-    <div class="toast" id="toast"></div>
-
-    <div class="content">
-
-      <!-- ============ MARKET ============ -->
-      <div class="card section active" id="section-market">
-        <h2 class="title">Ринок</h2>
-        <p class="sub">Оберіть проект і завантажте аналітику. Ми покажемо типову ціну та ціновий коридор.</p>
-
-        <!-- HERO -->
-        <div class="hero">
-          <div>
-            <div class="hero-left">
-              <img id="brandLogo" class="hero-logo" src="./assets/sellcase-logo.png" alt="SellCase" />
-              <div>
-                <div style="font-weight:1200; font-size:16px; letter-spacing:-.02em;">SellCase Market Snapshot</div>
-                <div class="hint">3 кроки: "Проект" → “Завантажити” → “Зберегти”</div>
-              </div>
-            </div>
-
-            <div class="actions">
-              <div class="saveCard">
-                <div class="saveIcon">⭐</div>
-                <div class="saveText">
-                  <div class="t">Зберегти запит</div>
-                  <div class="d">Щоб швидко повторити аналіз пізніше</div>
-                </div>
-                <button class="btn primary big" type="button" id="btnSaveQuery">Зберегти</button>
-              </div>
-
-              <div class="hint">Порада: спочатку оберіть проект і натисніть “Завантажити”.</div>
-            </div>
-          </div>
-
-          <div class="hero-right">
-            <img class="hero-illus" src="./assets/hero-emptystate-grn.png" alt="Hero illustration" />
-          </div>
-        </div>
-
-        <!-- FORM -->
-        <div class="grid2">
-          <div class="field">
-            <label for="marketProject">Проект</label>
-            <select id="marketProject"></select>
-          </div>
-
-          <div class="field">
-            <label for="marketPoints">Кількість точок</label>
-            <input id="marketPoints" type="number" min="5" max="30" value="30" />
-          </div>
-
-          <div class="field">
-            <label for="marketOffset">Зсув (для історії)</label>
-            <input id="marketOffset" type="number" min="0" value="0" />
-          </div>
-
-          <div class="field">
-            <label>&nbsp;</label>
-            <label class="pill">
-              <input id="marketReliable" type="checkbox" />
-              Показувати тільки надійні дані
-            </label>
-          </div>
-        </div>
-
-        <div class="row" style="margin-top:12px;">
-          <button class="btn primary" id="btnMarketLoad" type="button">Завантажити</button>
-
-          <!-- Попередні/Наступні в одну строку -->
-          <div class="row" style="gap:10px;">
-            <button class="btn" id="btnPrev" type="button">◀ Попередні</button>
-            <button class="btn" id="btnNext" type="button">Наступні ▶</button>
-          </div>
-
-          <span class="hint" id="marketHint"></span>
-        </div>
-
-        <!-- KPI -->
-        <div class="kpiGrid" id="marketKpi">
-          <div class="kpi">
-            <div class="k">Типова ціна</div>
-            <div class="v" id="kpiTypical">—</div>
-          </div>
-          <div class="kpi">
-            <div class="k">Зміна типової ціни</div>
-            <div class="v" id="kpiDelta">—</div>
-          </div>
-          <div class="kpi">
-            <div class="k">Діапазон ринку</div>
-            <div class="v" id="kpiRange">—</div>
-          </div>
-          <div class="kpi">
-            <div class="k">Кількість оголошень</div>
-            <div class="v" id="kpiCount">—</div>
-          </div>
-        </div>
-
-        <div class="error" id="marketError"></div>
-
-        <!-- Feature images (selling look) -->
-        <div class="features">
-          <div class="feature">
-            <img class="img" src="./assets/feature-search.png" alt="Пошук" />
-            <div class="cap">
-              <div>
-                <div class="t">Пошук</div>
-                <div class="d">Швидко знаходьте товар і бачте динаміку попиту.</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="feature">
-            <img class="img" src="./assets/feature-price-2780grn.png" alt="Ціна" />
-            <div class="cap">
-              <div>
-                <div class="t">Ціна</div>
-                <div class="d">Типова ціна та коридор — для впевнених рішень.</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="feature">
-            <img class="img" src="./assets/feature-trends.png" alt="Тренди" />
-            <div class="cap">
-              <div>
-                <div class="t">Тренди</div>
-                <div class="d">Підказки по змінах, щоб ловити моменти.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ============ QUERIES ============ -->
-      <div class="card section" id="section-queries">
-        <h2 class="title">Запити</h2>
-        <p class="sub">Запускайте аналіз — покажемо результат нижче.</p>
-
-        <div class="row" style="margin-top:10px;">
-          <input id="queryText" placeholder="Напр.: iPhone 13, дитяча коляска, шуруповерт..." />
-          <select id="queryCategory" style="max-width:220px;">
-            <option value="">Категорія (всі)</option>
-            <option>Електроніка</option>
-            <option>Дім і сад</option>
-            <option>Дитячі товари</option>
-            <option>Авто</option>
-            <option>Одяг</option>
-          </select>
-          <button class="btn primary" id="btnRunQuery" type="button">Запустити</button>
-        </div>
-
-        <div class="divider"></div>
-
-        <h3 style="margin:0 0 8px 0; font-weight:1100;">Збережені запити</h3>
-        <div id="savedQueries" class="hint">—</div>
-
-        <!-- Иллюстрация, чтобы не было пусто -->
-        <img class="section-illus" src="./assets/hero-analytics-2-2780grn.png" alt="Queries illustration" />
-      </div>
-
-      <!-- ============ PROJECTS ============ -->
-      <div class="card section" id="section-projects">
-        <h2 class="title">Проекти</h2>
-        <p class="sub"> Тут відображатимуться всі ваші проєкти для аналізу ринку та динаміки цін.</p>
         <div class="row">
-          <button class="btn primary" id="btnProjectsReload" type="button">Оновити список</button>
-          <span class="hint" id="projectsInfo"></span>
-        </div>
-
-        <div class="divider"></div>
-
-        <div id="projectsList" class="hint">—</div>
-        <div class="error" id="projectsError"></div>
-      </div>
-
-      <!-- ============ ACCOUNT ============ -->
-      <div class="card section" id="section-account">
-        <h2 class="title">Аккаунт</h2>
-        <p class="sub">Вхід/реєстрація. Після успішного входу форми зникнуть і відкриється профіль.</p>
-
-        <!-- FORMS -->
-        <div id="authForms">
-          <div class="grid2">
-            <!-- LOGIN -->
-            <div>
-              <h3 style="margin:0 0 10px 0; font-weight:1100;">Вхід</h3>
-
-              <form id="loginForm">
-                <div class="field">
-                  <label>Email</label>
-                  <input id="loginEmail" type="email" autocomplete="email" />
-                </div>
-
-                <div class="field" style="margin-top:10px;">
-                  <label>Пароль</label>
-                  <input id="loginPassword" type="password" autocomplete="current-password" />
-                </div>
-
-                <div class="row" style="margin-top:10px;">
-                  <button class="btn primary" id="btnLogin" type="submit">Увійти</button>
-                  <span class="hint" id="loginInfo"></span>
-                </div>
-              </form>
-            </div>
-
-            <!-- REGISTER -->
-            <div id="registerBlock">
-              <h3 style="margin:0 0 10px 0; font-weight:1100;">Реєстрація</h3>
-
-              <form id="registerForm">
-                <div class="field">
-                  <label>Імʼя</label>
-                  <input id="regFirstName" />
-                </div>
-
-                <div class="field" style="margin-top:10px;">
-                  <label>Прізвище</label>
-                  <input id="regLastName" />
-                </div>
-
-                <div class="field" style="margin-top:10px;">
-                  <label>Email</label>
-                  <input id="regEmail" type="email" autocomplete="email" />
-                </div>
-
-                <div class="field" style="margin-top:10px;">
-                  <label>Пароль</label>
-                  <input id="regPassword" type="password" autocomplete="new-password" />
-                </div>
-
-                <div class="row" style="margin-top:10px;">
-                  <button class="btn primary" id="btnRegister" type="submit">Створити акаунт</button>
-                </div>
-
-                <div class="hint" style="margin-top:10px;">
-                  Далі додамо: Google / Facebook тощо.
-                </div>
-              </form>
-            </div>
-          </div>
-
-          <div class="error" id="accountError"></div>
-        </div>
-
-        <!-- AFTER LOGIN -->
-        <div id="authDone" style="display:none; margin-top:10px;">
-          <div style="
-            padding:14px;
-            border-radius:22px;
-            border:1px solid var(--border);
-            background:white;
-            box-shadow: var(--shadow-soft);
-            display:flex; gap:12px; align-items:center; justify-content:space-between;
-            flex-wrap:wrap;
-          ">
-            <div style="display:flex; gap:12px; align-items:center;">
-              <div id="userAvatar" style="
-                width:54px;height:54px;border-radius:18px;
-                display:grid;place-items:center;
-                background: linear-gradient(135deg, rgba(37,99,235,.22), rgba(99,102,241,.16));
-                border:1px solid rgba(15,23,42,.08);
-                font-weight:1200;
-                font-size:16px;
-              ">U</div>
-
-              <div>
-                <div id="userTitle" style="font-weight:1200; font-size:16px;">Користувач</div>
-                <div id="userSubtitle" class="hint">✅ Вхід успішно виконано.</div>
-              </div>
-            </div>
-
-            <div class="row">
-              <button class="btn" id="btnGoMarket" type="button">Перейти до Ринку</button>
-              <button class="btn" id="btnLogout" type="button">Вийти</button>
-            </div>
-          </div>
-
-          <div class="kpiGrid" style="margin-top:12px;">
-            <div class="kpi">
-              <div class="k">User ID</div>
-              <div class="v" id="meId">—</div>
-            </div>
-            <div class="kpi">
-              <div class="k">Створено</div>
-              <div class="v" id="meCreated">—</div>
-            </div>
-            <div class="kpi">
-              <div class="k">Статус</div>
-              <div class="v" id="meActive">—</div>
-            </div>
-            <div class="kpi">
-              <div class="k">Роль</div>
-              <div class="v">Користувач</div>
-            </div>
-          </div>
+          <button class="btn" type="button" data-action="apply" data-index="${i}">Застосувати</button>
+          <button class="btn" type="button" data-action="del" data-index="${i}">🗑</button>
         </div>
       </div>
+    `;
+  }).join("");
 
-    </div>
-  </div>
+  box.onclick = (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
 
-  <!-- Bottom navigation -->
-  <div class="bottom-nav" id="nav">
-    <div class="navgrid">
-      <button class="tab active" data-tab="market" type="button">
-        <span class="ico">📊</span><span>Ринок</span>
-      </button>
-      <button class="tab" data-tab="queries" type="button">
-        <span class="ico">🔎</span><span>Запити</span>
-      </button>
-      <button class="tab" data-tab="projects" type="button">
-        <span class="ico">≡</span><span>Проекти</span>
-      </button>
-      <button class="tab" data-tab="account" type="button">
-        <span class="ico">👤</span><span>Аккаунт</span>
-      </button>
-    </div>
-  </div>
+    const idx = Number(b.dataset.index);
+    const action = b.dataset.action;
+    const items2 = getSavedQueries();
 
-  <script src="./app.js"></script>
-</body>
-</html>
+    if (action === "del") {
+      items2.splice(idx, 1);
+      setSavedQueries(items2);
+      renderSavedQueries();
+      return;
+    }
+
+    if (action === "apply") {
+      const q = items2[idx];
+      if ($("marketPoints")) $("marketPoints").value = String(q.points ?? 30);
+      if ($("marketOffset")) $("marketOffset").value = String(q.offset ?? 0);
+      if ($("marketReliable")) $("marketReliable").checked = !!q.reliable;
+      setTab("market");
+      showToast("⭐ Запит застосовано.");
+    }
+  };
+}
+
+function initQueryUI() {
+  const run = $("btnRunQuery");
+  if (run) run.addEventListener("click", () => {
+    showToast("Запуск пошуку підключимо наступним кроком.");
+  });
+
+  const save = $("btnSaveQuery");
+  if (save) save.addEventListener("click", () => {
+    const points = Number($("marketPoints")?.value || 30);
+    const offset = Number($("marketOffset")?.value || 0);
+    const reliable = !!$("marketReliable")?.checked;
+
+    const item = {
+      text: $("queryText")?.value || "",
+      category: $("queryCategory")?.value || "",
+      points,
+      offset,
+      reliable,
+      ts: Date.now()
+    };
+
+    const items = getSavedQueries();
+    items.unshift(item);
+    setSavedQueries(items.slice(0, 30));
+    renderSavedQueries();
+    showToast("⭐ Запит збережено.");
+  });
+
+  renderSavedQueries();
+}
+
+/* ========= Market: /metrics/summary ========= */
+
+function pick(obj, keys) {
+  for (const k of keys) {
+    if (obj && Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== null && obj[k] !== undefined) return obj[k];
+  }
+  return undefined;
+}
+
+function formatMoney(v) {
+  if (v === null || v === undefined || v === "" || Number.isNaN(Number(v))) return "—";
+  return Number(v).toLocaleString("uk-UA");
+}
+
+function setKpi(id, val) {
+  const el = $(id);
+  if (el) el.textContent = val;
+}
+
+function buildMetricsQuery() {
+  const project = $("marketProject")?.value || "";
+  const points = Number($("marketPoints")?.value || 30);
+  const offset = Number($("marketOffset")?.value || 0);
+  const reliable = !!$("marketReliable")?.checked;
+
+  const qs = new URLSearchParams();
+  if (project) qs.set("project", project);
+  qs.set("points", String(points));
+  qs.set("offset", String(offset));
+  qs.set("reliable", reliable ? "true" : "false");
+  qs.set("cursor", String(state.marketCursor || 0)); // optional
+
+  return qs.toString();
+}
+
+async function loadMarketSummary() {
+  const errEl = $("marketError");
+  setError(errEl, "");
+  setHint("marketHint", "");
+
+  if (!getToken()) {
+    setError(errEl, "Потрібен вхід. Будь ласка, увійдіть у акаунт.");
+    setTab("account");
+    return;
+  }
+
+  const btn = $("btnMarketLoad");
+  if (btn) btn.disabled = true;
+
+  try {
+    const qs = buildMetricsQuery();
+    const data = await apiFetchJson(`${ENDPOINTS.metricsSummary}?${qs}`);
+    const root = data?.summary || data?.data || data || {};
+
+    const typical = pick(root, ["typical", "typical_price", "median_price", "median", "p50"]);
+    const delta = pick(root, ["delta", "delta_price", "change", "diff"]);
+    const count = pick(root, ["count", "listings_count", "items_count", "ads_count", "n"]);
+    const rMin = pick(root, ["min", "range_min", "low", "from"]);
+    const rMax = pick(root, ["max", "range_max", "high", "to"]);
+
+    setKpi("kpiTypical", formatMoney(typical));
+    if (delta === null || delta === undefined || Number.isNaN(Number(delta))) setKpi("kpiDelta", "—");
+    else {
+      const n = Number(delta);
+      const s = (n > 0 ? "+" : "") + n.toLocaleString("uk-UA");
+      setKpi("kpiDelta", s);
+    }
+
+    setKpi("kpiRange", (rMin !== undefined || rMax !== undefined) ? `${formatMoney(rMin)} — ${formatMoney(rMax)}` : "—");
+    setKpi("kpiCount", (count === undefined ? "—" : Number(count).toLocaleString("uk-UA")));
+
+    setHint("marketHint", "✅ Дані оновлено.");
+    showToast("Ринок оновлено.");
+
+  } catch (err) {
+    setError(errEl, userFriendlyError(err));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function initMarket() {
+  const loadBtn = $("btnMarketLoad");
+  if (loadBtn) loadBtn.addEventListener("click", loadMarketSummary);
+
+  const prev = $("btnPrev");
+  const next = $("btnNext");
+
+  if (prev) prev.addEventListener("click", () => {
+    state.marketCursor = Math.max(0, (state.marketCursor || 0) - 1);
+    loadMarketSummary();
+  });
+  if (next) next.addEventListener("click", () => {
+    state.marketCursor = (state.marketCursor || 0) + 1;
+    loadMarketSummary();
+  });
+}
+
+/* ========= Projects (temporary UX, no scary text) ========= */
+
+function initProjects() {
+  const projBtn = $("btnProjectsReload");
+  if (!projBtn) return;
+
+  projBtn.addEventListener("click", () => {
+    const list = $("projectsList");
+    const info = $("projectsInfo");
+    if (list) list.textContent = "Поки що проєкти не підключені.";
+    if (info) info.textContent = "Скоро додамо завантаження з API.";
+    showToast("Проєкти: у розробці.");
+  });
+}
+
+/* ========= Health ping (retry) ========= */
+
+async function pingOnce() {
+  await apiFetchJson(ENDPOINTS.health);
+}
+
+async function ping() {
+  setServerStatus("connecting");
+
+  for (let i = 0; i <= PING_RETRIES; i++) {
+    try {
+      await pingOnce();
+      setServerStatus("online");
+      return true;
+    } catch (e) {
+      // wait a bit and retry (Render cold start)
+      if (i < PING_RETRIES) await new Promise(r => setTimeout(r, 900));
+    }
+  }
+
+  setServerStatus("offline");
+  return false;
+}
+
+/* ========= INIT ========= */
+
+function init() {
+  initNav();
+  initAuth();
+  initQueryUI();
+  initMarket();
+  initProjects();
+
+  // default tab
+  setTab("market");
+
+  // Ping now + periodically
+  ping();
+  setInterval(ping, PING_INTERVAL_MS);
+
+  // If token exists, try /auth/me
+  if (getToken()) {
+    fetchMe().then((me) => {
+      if (!me) {
+        setToken("");
+        uiAfterLoginOff();
+      }
+    });
+  } else {
+    uiAfterLoginOff();
+  }
+}
+
+document.addEventListener("DOMContentLoaded", init);
