@@ -2,7 +2,7 @@
 <html lang="uk">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SellCase — Аналітика ринку</title>
 
   <style>
@@ -19,6 +19,8 @@
       --shadow: 0 12px 30px rgba(2,6,23,.08);
       --shadow-soft: 0 8px 18px rgba(2,6,23,.06);
 
+      --r12:12px;
+      --r14:14px;
       --r16:16px;
       --r20:20px;
       --r24:24px;
@@ -30,68 +32,68 @@
       font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       color:var(--text);
       background:
-        radial-gradient(900px 500px at 15% 0%, rgba(37,99,235,.12), rgba(37,99,235,0) 60%),
-        radial-gradient(900px 500px at 90% 10%, rgba(99,102,241,.12), rgba(99,102,241,0) 55%),
+        radial-gradient(900px 500px at 15% 0%, rgba(37,99,235,.12), transparent 60%),
+        radial-gradient(900px 500px at 90% 10%, rgba(99,102,241,.10), transparent 60%),
         var(--bg);
     }
 
     .wrap{
-      max-width: 1040px;
-      margin: 0 auto;
-      padding: 14px 14px 92px; /* место под bottom-nav */
+      max-width:1040px;
+      margin:0 auto;
+      padding:14px 14px 92px; /* место под bottom-nav */
     }
 
     /* Top App Bar */
     .appbar{
       background: rgba(255,255,255,.86);
       backdrop-filter: blur(10px);
-      border: 1px solid var(--border);
+      border:1px solid var(--border);
       border-radius: var(--r24);
       box-shadow: var(--shadow);
-      padding: 14px 14px;
+      padding:14px 14px;
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap: 12px;
+      gap:12px;
     }
     .brand{
       display:flex;
       align-items:center;
-      gap: 12px;
-      min-width: 240px;
+      gap:12px;
+      min-width:240px;
     }
     .logo{
-      width: 44px;
-      height: 44px;
-      border-radius: 16px;
+      width:44px;height:44px;
+      border-radius:16px;
       display:grid;
       place-items:center;
-      background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(99,102,241,.18));
-      border: 1px solid rgba(15,23,42,.08);
+      background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(99,102,241,.14));
+      border:1px solid rgba(15,23,42,.08);
+      overflow:hidden;
     }
-    .brand h1{ margin:0; font-size: 16px; line-height: 1.15; font-weight: 1000; letter-spacing:-.02em; }
-    .brand p{ margin:3px 0 0 0; font-size: 12px; color: var(--muted); }
+    .logo img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .brand h1{ margin:0; font-size:16px; line-height:1.15; font-weight:1200; letter-spacing:-.02em; }
+    .brand p{ margin:3px 0 0; font-size:12px; color:var(--muted); }
 
     .rightbar{
       display:flex;
       align-items:center;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
     }
-
     .status{
       display:flex;
       align-items:center;
       gap:8px;
-      padding: 10px 12px;
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      font-weight: 900;
-      font-size: 12px;
+      padding:10px 12px;
+      background:white;
+      border:1px solid var(--border);
+      border-radius:999px;
       box-shadow: var(--shadow-soft);
-      white-space: nowrap;
+      font-weight:900;
+      font-size:12px;
+      white-space:nowrap;
     }
     .dot{ width:10px; height:10px; border-radius:50%; background:#94a3b8; }
     .dot.red{ background:#ef4444; }
@@ -100,26 +102,25 @@
     /* Toast */
     .toast{
       display:none;
-      margin-top: 12px;
-      padding: 12px 14px;
+      margin-top:12px;
+      padding:12px 14px;
       border-radius: var(--r16);
-      border: 1px solid #bbf7d0;
-      background: #dcfce7;
-      font-weight: 900;
+      border:1px solid #bbf7d0;
+      background:#dcfce7;
+      font-weight:900;
       box-shadow: var(--shadow-soft);
     }
     .toast.show{ display:block; }
 
-    /* Content */
-    .content{ margin-top: 12px; }
-
+    /* Generic */
+    .content{ margin-top:12px; }
     .card{
       background: rgba(255,255,255,.86);
       backdrop-filter: blur(10px);
-      border: 1px solid var(--border);
+      border:1px solid var(--border);
       border-radius: var(--r24);
       box-shadow: var(--shadow);
-      padding: 16px;
+      padding:16px;
     }
 
     .section{ display:none; }
@@ -127,120 +128,101 @@
 
     .title{
       margin:0 0 6px 0;
-      font-size: 18px;
-      font-weight: 1100;
-      letter-spacing: -0.02em;
+      font-size:18px;
+      font-weight:1100;
+      letter-spacing:-.02em;
     }
     .sub{
       margin:0 0 12px 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.35;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.35;
     }
 
-    /* Forms */
-    .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    @media (max-width: 860px){ .grid2{ grid-template-columns: 1fr; } }
+    .divider{
+      height:1px;
+      background: var(--border);
+      margin:14px 0;
+    }
+
+    .row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px;
+    }
+    @media (max-width: 860px){
+      .grid2{ grid-template-columns: 1fr; }
+    }
 
     label{
       display:block;
-      font-weight: 900;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 6px;
+      font-weight:900;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:6px;
     }
+
     input, select{
       width:100%;
-      padding: 12px 12px;
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      background: white;
-      font-size: 14px;
-      outline: none;
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:white;
+      font-size:14px;
+      outline:none;
       box-shadow: 0 1px 0 rgba(2,6,23,.02);
     }
     input:focus, select:focus{
       border-color: rgba(37,99,235,.35);
       box-shadow: 0 0 0 4px rgba(37,99,235,.10);
     }
-    .field{ display:grid; gap: 6px; }
 
-    .row{ display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
+    .field{ display:grid; gap:6px; }
 
-    /* Buttons */
     .btn{
-      border: 1px solid var(--border);
-      background: white;
-      color: var(--text);
-      padding: 12px 14px;
-      border-radius: 14px;
-      font-weight: 1000;
-      cursor: pointer;
+      border:1px solid var(--border);
+      background:white;
+      color:var(--text);
+      padding:12px 14px;
+      border-radius:14px;
+      font-weight:1000;
+      cursor:pointer;
       box-shadow: var(--shadow-soft);
-      user-select: none;
+      user-select:none;
     }
     .btn:disabled{ opacity:.55; cursor:not-allowed; }
-
     .btn.primary{
       border-color: transparent;
       background: linear-gradient(180deg, var(--blue), var(--blue-2));
-      color: white;
+      color:white;
     }
 
-    .hint{ color: var(--muted); font-size: 12px; font-weight: 800; }
+    .hint{
+      color:var(--muted);
+      font-size:12px;
+      font-weight:800;
+    }
 
     .error{
       display:none;
-      margin-top: 12px;
-      padding: 12px 14px;
+      margin-top:12px;
+      padding:12px 14px;
       border-radius: var(--r16);
-      border: 1px solid #fecaca;
-      background: #fee2e2;
-      font-weight: 900;
+      border:1px solid #fecaca;
+      background:#fee2e2;
+      font-weight:900;
       box-shadow: var(--shadow-soft);
     }
     .error.show{ display:block; }
 
-    /* Market KPIs */
-    .kpiGrid{
-      display:grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      margin-top: 14px;
-    }
-    @media (max-width: 980px){ .kpiGrid{ grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 520px){ .kpiGrid{ grid-template-columns: 1fr; } }
-
-    .kpi{
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: var(--r20);
-      padding: 12px;
-      box-shadow: var(--shadow-soft);
-    }
-    .kpi .k{ font-size: 12px; color: var(--muted); font-weight: 1000; margin-bottom: 6px; }
-    .kpi .v{ font-size: 18px; font-weight: 1200; letter-spacing: -0.02em; }
-
-    .divider{ height:1px; background: var(--border); margin: 14px 0; }
-
-    /* Reliable toggle */
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      gap: 8px;
-      padding: 8px 10px;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: white;
-      box-shadow: var(--shadow-soft);
-      font-weight: 1000;
-      font-size: 12px;
-      cursor: pointer;
-      user-select:none;
-    }
-    .pill input{ width:auto; margin:0; }
-
-    /* Brand hero block */
+    /* Hero block inside Market */
     .hero{
       margin: 12px 0 10px;
       padding: 14px;
@@ -249,62 +231,156 @@
       background: white;
       box-shadow: var(--shadow-soft);
       display:flex;
-      gap:12px;
       align-items:center;
       justify-content:space-between;
+      gap:12px;
       flex-wrap:wrap;
     }
     .hero-left{
       display:flex;
       gap:12px;
       align-items:center;
-      min-width: 240px;
+      min-width:240px;
     }
     .hero-logo{
-      width:64px;height:64px;border-radius:18px;object-fit:cover;
+      width:64px;height:64px;
+      border-radius:18px;
+      object-fit:cover;
       border:1px solid var(--border);
-      background: #fff;
+      background:#fff;
+      display:block;
     }
+    .hero-right{
+      flex: 1 1 320px;
+      display:flex;
+      justify-content:flex-end;
+    }
+    .hero-illus{
+      width:min(520px, 100%);
+      height:auto;
+      border-radius:18px;
+      border:1px solid rgba(15,23,42,.06);
+      box-shadow: var(--shadow-soft);
+      background:#fff;
+      display:block;
+    }
+
+    /* Feature cards */
+    .features{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:12px;
+      margin-top:12px;
+    }
+    @media (max-width: 920px){
+      .features{ grid-template-columns: 1fr; }
+    }
+    .feature{
+      background:white;
+      border:1px solid var(--border);
+      border-radius: 22px;
+      padding: 14px;
+      box-shadow: var(--shadow-soft);
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      min-height: 170px;
+    }
+    .feature img{
+      width:100%;
+      height:auto;
+      border-radius:16px;
+      border:1px solid rgba(15,23,42,.06);
+      background:#fff;
+    }
+    .feature .ftitle{
+      margin:0;
+      font-size:14px;
+      font-weight:1200;
+      letter-spacing:-.01em;
+    }
+    .feature .fsub{
+      margin:0;
+      font-size:12px;
+      color:var(--muted);
+      font-weight:800;
+      line-height:1.35;
+    }
+
+    /* KPI grid */
+    .kpiGrid{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:12px;
+      margin-top:14px;
+    }
+    @media (max-width: 980px){ .kpiGrid{ grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 520px){ .kpiGrid{ grid-template-columns: 1fr; } }
+
+    .kpi{
+      background:white;
+      border:1px solid var(--border);
+      border-radius: var(--r20);
+      padding:12px;
+      box-shadow: var(--shadow-soft);
+    }
+    .kpi .k{ font-size:12px; color:var(--muted); font-weight:900; }
+    .kpi .v{ font-size:18px; font-weight:1200; letter-spacing:-.02em; margin-top:4px; }
 
     /* Bottom Nav */
     .bottom-nav{
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      position:fixed;
+      left:0; right:0; bottom:0;
+      padding:10px 12px calc(10px + env(safe-area-inset-bottom));
       background: rgba(255,255,255,.90);
       backdrop-filter: blur(12px);
-      border-top: 1px solid var(--border);
-      z-index: 200;
+      border-top:1px solid var(--border);
+      z-index:200;
     }
     .bottom-nav .navgrid{
-      max-width: 1040px;
-      margin: 0 auto;
+      max-width:1040px;
+      margin:0 auto;
       display:grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
+      gap:8px;
     }
     .tab{
-      border: 1px solid var(--border);
-      background: white;
-      border-radius: 16px;
-      padding: 10px 8px;
-      font-weight: 1100;
-      cursor: pointer;
+      border:1px solid var(--border);
+      background:white;
+      border-radius:16px;
+      padding:10px 8px;
+      font-weight:1100;
+      cursor:pointer;
       box-shadow: var(--shadow-soft);
       display:flex;
-      flex-direction: column;
+      flex-direction:column;
       align-items:center;
       justify-content:center;
-      gap: 4px;
-      font-size: 11px;
-      color: var(--text);
+      gap:4px;
+      font-size:11px;
+      color:var(--text);
       user-select:none;
     }
     .tab.active{
       border-color: rgba(37,99,235,.35);
       box-shadow: 0 0 0 4px rgba(37,99,235,.10), var(--shadow-soft);
     }
-    .tab .ico{ font-size: 16px; line-height: 1; }
+    .tab .ico{ font-size:16px; line-height:1; }
+
+    /* Small banner inside Queries */
+    .banner{
+      margin-top:10px;
+      border-radius:22px;
+      overflow:hidden;
+      border:1px solid rgba(15,23,42,.06);
+      background:#fff;
+      box-shadow: var(--shadow-soft);
+    }
+    .banner img{
+      width:100%;
+      height:auto;
+      display:block;
+    }
   </style>
 </head>
 
@@ -312,7 +388,9 @@
   <div class="wrap">
     <div class="appbar">
       <div class="brand">
-        <div class="logo">📊</div>
+        <div class="logo">
+          <img src="./assets/sellcase-logo.png" alt="SellCase" />
+        </div>
         <div>
           <h1>SellCase</h1>
           <p>Аналітика ринку OLX: ціни, зрізи, динаміка</p>
@@ -322,7 +400,7 @@
       <div class="rightbar">
         <div class="status" id="serverStatus">
           <span class="dot"></span>
-          <span>перевірка…</span>
+          <span>Перевірка...</span>
         </div>
       </div>
     </div>
@@ -333,31 +411,57 @@
       <!-- РИНОК -->
       <div class="card section active" id="section-market">
         <h2 class="title">Ринок</h2>
-        <p class="sub">Оберіть проєкт і завантажте аналітику. Ми покажемо типову ціну та ціновий коридор.</p>
+        <p class="sub">Оберіть проект і завантажте аналітику. Ми покажемо типову ціну та ціновий коридор.</p>
 
-        <!-- Брендовый блок с логотипом -->
+        <!-- Hero -->
         <div class="hero">
           <div class="hero-left">
-            <img id="brandLogo" class="hero-logo" src="./sellcase-logo.png" alt="SellCase" />
+            <img id="brandLogo" class="hero-logo" src="./assets/sellcase-logo.png" alt="SellCase logo" />
             <div>
               <div style="font-weight:1200; font-size:16px;">SellCase Market Snapshot</div>
-              <div class="hint">Оберіть проєкт → завантажте зріз → збережіть запит.</div>
+              <div class="hint">Оберіть проект → завантажте зріз → збережіть запит.</div>
             </div>
           </div>
+
           <div class="row">
             <button class="btn" type="button" id="btnSaveQuery">⭐ Зберегти запит</button>
           </div>
+
+          <div class="hero-right">
+            <img class="hero-illus" src="./assets/hero-emptystate-grn.png" alt="Hero illustration" />
+          </div>
         </div>
+
+        <!-- Feature blocks -->
+        <div class="features">
+          <div class="feature">
+            <img src="./assets/feature-search.png" alt="Пошук" />
+            <p class="ftitle">Пошук</p>
+            <p class="fsub">Швидко перевіряйте нішу/товар по запиту та категорії.</p>
+          </div>
+          <div class="feature">
+            <img src="./assets/feature-price-2780grn.png" alt="Ціна" />
+            <p class="ftitle">Ціна</p>
+            <p class="fsub">Показуємо типову ціну й коридор по ринку (перший прототип).</p>
+          </div>
+          <div class="feature">
+            <img src="./assets/feature-trends.png" alt="Тренди" />
+            <p class="ftitle">Тренди</p>
+            <p class="fsub">Динаміка за період: як змінюється ціна та пропозиція.</p>
+          </div>
+        </div>
+
+        <div class="divider"></div>
 
         <div class="grid2">
           <div class="field">
-            <label for="marketProject">Проєкт</label>
+            <label for="marketProject">Проект</label>
             <select id="marketProject"></select>
           </div>
 
           <div class="field">
             <label for="marketPoints">Кількість точок</label>
-            <input id="marketPoints" type="number" min="5" max="300" value="30" />
+            <input id="marketPoints" type="number" min="5" max="30" value="30" />
           </div>
 
           <div class="field">
@@ -367,18 +471,17 @@
 
           <div class="field">
             <label>&nbsp;</label>
-            <label class="pill">
+            <label class="hint" style="display:flex; align-items:center; gap:10px; padding:12px; border:1px solid var(--border); border-radius:14px; background:#fff; box-shadow: var(--shadow-soft);">
               <input id="marketReliable" type="checkbox" />
               Показувати тільки надійні дані
             </label>
           </div>
         </div>
 
-        <div class="row" style="margin-top:12px">
+        <div class="row" style="margin-top:12px;">
           <button class="btn primary" id="btnMarketLoad" type="button">Завантажити</button>
 
-          <!-- Попередні / Наступні в одну строку -->
-          <div class="row" style="gap:10px">
+          <div class="row" style="gap:10px;">
             <button class="btn" id="btnPrev" type="button">◀ Попередні</button>
             <button class="btn" id="btnNext" type="button">Наступні ▶</button>
           </div>
@@ -413,8 +516,12 @@
         <h2 class="title">Запити</h2>
         <p class="sub">Зручні шаблони та збережені запити (як у конкурентів). Підключимо до API по мірі готовності.</p>
 
+        <div class="banner">
+          <img src="./assets/hero-analytics-2-2780grn.png" alt="Analytics banner" />
+        </div>
+
         <div class="row" style="margin-top:10px;">
-          <input id="queryText" placeholder="Напр.: iPhone 13, дитяча коляска, генератор..." />
+          <input id="queryText" placeholder="Напр.: iPhone 13, дитячий велосипед..." />
           <select id="queryCategory" style="max-width:220px;">
             <option value="">Категорія (всі)</option>
             <option>Електроніка</option>
@@ -435,7 +542,7 @@
       <!-- ПРОЕКТИ -->
       <div class="card section" id="section-projects">
         <h2 class="title">Проекти</h2>
-        <p class="sub">Список проєктів з API (використовується і в “Ринок”).</p>
+        <p class="sub">Список проектів з API (використовується і в “Ринку”).</p>
 
         <div class="row">
           <button class="btn primary" id="btnProjectsReload" type="button">Оновити список</button>
@@ -453,7 +560,7 @@
         <h2 class="title">Аккаунт</h2>
         <p class="sub">Вхід/реєстрація. Після успішного входу форми зникнуть і відкриється профіль.</p>
 
-        <!-- ФОРМЫ -->
+        <!-- ФОРМИ -->
         <div id="authForms">
           <div class="grid2">
             <div>
@@ -464,12 +571,12 @@
                   <input id="loginEmail" type="email" autocomplete="email" />
                 </div>
 
-                <div class="field" style="margin-top:10px">
+                <div class="field" style="margin-top:10px;">
                   <label>Пароль</label>
                   <input id="loginPassword" type="password" autocomplete="current-password" />
                 </div>
 
-                <div class="row" style="margin-top:10px">
+                <div class="row" style="margin-top:10px;">
                   <button class="btn primary" id="btnLogin" type="submit">Увійти</button>
                   <span class="hint" id="loginInfo"></span>
                 </div>
@@ -484,26 +591,26 @@
                   <input id="regFirstName" />
                 </div>
 
-                <div class="field" style="margin-top:10px">
+                <div class="field" style="margin-top:10px;">
                   <label>Прізвище</label>
                   <input id="regLastName" />
                 </div>
 
-                <div class="field" style="margin-top:10px">
+                <div class="field" style="margin-top:10px;">
                   <label>Email</label>
                   <input id="regEmail" type="email" autocomplete="email" />
                 </div>
 
-                <div class="field" style="margin-top:10px">
+                <div class="field" style="margin-top:10px;">
                   <label>Пароль</label>
-                  <input id="regPassword" type="password" autocomplete="new-password" placeholder="Мінімум 8 символів" />
+                  <input id="regPassword" type="password" autocomplete="new-password" />
                 </div>
 
-                <div class="row" style="margin-top:10px">
-                  <button class="btn primary" id="btnRegister" type="submit">Створити акаунт</button>
+                <div class="row" style="margin-top:10px;">
+                  <button class="btn primary" id="btnRegister" type="submit">Зареєструватися</button>
                 </div>
 
-                <div class="hint" style="margin-top:10px">
+                <div class="hint" style="margin-top:10px;">
                   Далі додамо: Google / Facebook тощо.
                 </div>
               </form>
@@ -511,8 +618,8 @@
           </div>
         </div>
 
-        <!-- ПОСЛЕ ВХОДА: КАРТОЧКА ПОЛЬЗОВАТЕЛЯ -->
-        <div id="authDone" style="display:none; margin-top: 10px;">
+        <!-- ПІСЛЯ ВХОДУ: КАРТОЧКА КОРИСТУВАЧА -->
+        <div id="authDone" style="display:none; margin-top:10px;">
           <div style="
             padding:14px;
             border-radius:22px;
@@ -525,14 +632,14 @@
               <div id="userAvatar" style="
                 width:54px;height:54px;border-radius:18px;
                 display:grid;place-items:center;
-                background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(99,102,241,.18));
+                background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(99,102,241,.14));
                 border:1px solid rgba(15,23,42,.08);
                 font-weight:1200;
                 font-size:16px;
               ">U</div>
 
               <div>
-                <div id="userTitle" style="font-weight:1200; font-size:16px;">Користувач</div>
+                <div id="userTitle" style="font-weight:1200; font-size:15px;">Користувач</div>
                 <div id="userSubtitle" class="hint">✅ Вхід успішно виконано.</div>
               </div>
             </div>
@@ -568,24 +675,10 @@
     </div>
   </div>
 
-  <!-- Нижняя навигация -->
+  <!-- Нижня навігація -->
   <div class="bottom-nav" id="nav">
     <div class="navgrid">
       <button class="tab active" data-tab="market" type="button">
         <span class="ico">📊</span><span>Ринок</span>
       </button>
-      <button class="tab" data-tab="queries" type="button">
-        <span class="ico">🔎</span><span>Запити</span>
-      </button>
-      <button class="tab" data-tab="projects" type="button">
-        <span class="ico">☰</span><span>Проекти</span>
-      </button>
-      <button class="tab" data-tab="account" type="button">
-        <span class="ico">👤</span><span>Аккаунт</span>
-      </button>
-    </div>
-  </div>
-
-  <script src="./app.js"></script>
-</body>
-  </html>
+      <button class="tab" data-tab="queries" 
