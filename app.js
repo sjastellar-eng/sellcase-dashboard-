@@ -1,13 +1,7 @@
 /* =========================================================
-   SellCase app.js — FIXED:
-   ✅ login more robust (tries payload variants + endpoints)
-   ✅ server status ping no longer requires JSON (so it won’t stick on Connecting…)
-   ✅ logo fills the square (not tiny)
-   ✅ no debug banners / no endpoint text in UI
+   SellCase app.js — robust DOM + logo fix + user label + results render
    ========================================================= */
-
 (() => {
-  /* -------------------- CONFIG -------------------- */
   const DEFAULT_API_BASE = "https://sellcase-backend.onrender.com";
   const API_BASE =
     (window.SELLCASE_API_BASE && String(window.SELLCASE_API_BASE)) ||
@@ -16,22 +10,16 @@
 
   const LS_TOKEN = "sellcase_token_v1";
   const LS_SAVED_QUERIES = "sellcase_saved_queries_v1";
-
-  const TIMEOUT_MS = 20000;     // Render cold start friendly
+  const TIMEOUT_MS = 20000;
   const PING_INTERVAL_MS = 30000;
   const PING_RETRIES = 2;
 
-  // We try multiple routes; first that works wins.
   const ROUTES = {
-    // IMPORTANT: ping routes must not require JSON parsing
     health: ["/health", "/api/health", "/ping", "/docs"],
-
     login: ["/auth/login", "/api/auth/login"],
     register: ["/auth/register", "/api/auth/register"],
     me: ["/auth/me", "/api/auth/me", "/users/me", "/api/users/me"],
-
     projects: ["/projects", "/api/projects", "/project", "/api/project"],
-
     marketSummary: [
       "/metrics/summary",
       "/api/metrics/summary",
@@ -40,14 +28,6 @@
       "/market/summary",
       "/api/market/summary",
     ],
-
-    topBrands: [
-      "/search/analytics/top-brands",
-      "/api/search/analytics/top-brands",
-      "/search/analytics/top_brands",
-      "/api/search/analytics/top_brands",
-    ],
-
     queryRun: [
       "/search/analytics/query",
       "/api/search/analytics/query",
@@ -56,9 +36,14 @@
       "/search/analytics",
       "/api/search/analytics",
     ],
+    topBrands: [
+      "/search/analytics/top-brands",
+      "/api/search/analytics/top-brands",
+      "/search/analytics/top_brands",
+      "/api/search/analytics/top_brands",
+    ],
   };
 
-  /* -------------------- HELPERS -------------------- */
   const $ = (id) => document.getElementById(id);
 
   function buildUrl(path) {
@@ -72,6 +57,10 @@
     if (token) localStorage.setItem(LS_TOKEN, token);
     else localStorage.removeItem(LS_TOKEN);
   }
+  function authHeaders() {
+    const token = getToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
 
   function safeText(el, text) {
     if (!el) return;
@@ -79,7 +68,7 @@
   }
 
   function showToast(msg) {
-    const t = $("toast");
+    const t = $("toast") || document.querySelector("#toast");
     if (!t) return;
     t.textContent = msg;
     t.classList.add("show");
@@ -92,14 +81,8 @@
     el.classList.toggle("show", !!msg);
   }
 
-  function setHint(id, msg) {
-    const el = $(id);
-    if (!el) return;
-    el.textContent = msg || "";
-  }
-
   function setServerStatus(state) {
-    const box = $("serverStatus");
+    const box = $("serverStatus") || document.querySelector("#serverStatus");
     if (!box) return;
     const dot = box.querySelector(".dot");
     const text = box.querySelector("span:last-child");
@@ -148,30 +131,6 @@
     }
   }
 
-  function asArrayProjects(payload) {
-    if (!payload) return [];
-    if (Array.isArray(payload)) return payload;
-    if (Array.isArray(payload.items)) return payload.items;
-    if (Array.isArray(payload.projects)) return payload.projects;
-    if (Array.isArray(payload.data)) return payload.data;
-    return [];
-  }
-
-  function projectLabel(p) {
-    const name =
-      p?.name ||
-      p?.title ||
-      p?.project_name ||
-      p?.projectTitle ||
-      p?.slug ||
-      `Проект #${p?.id ?? "—"}`;
-    return String(name);
-  }
-
-  function projectId(p) {
-    return p?.id ?? p?.project_id ?? p?.projectId ?? p?.slug ?? p?.name ?? "";
-  }
-
   function normalizeMe(me) {
     const first = me?.first_name || me?.firstName || "";
     const last = me?.last_name || me?.lastName || "";
@@ -183,14 +142,13 @@
     return {
       id: me?.id ?? me?.user_id ?? me?.userId ?? null,
       email: me?.email ?? "",
-      fullName: full || "Користувач",
+      fullName: full || "",
       createdAt: me?.created_at || me?.createdAt || "",
       isActive: me?.is_active ?? me?.active ?? null,
       raw: me,
     };
   }
 
-  /* -------------------- FETCH (timeout) -------------------- */
   async function fetchWithTimeout(url, options = {}) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -204,14 +162,12 @@
   async function fetchJSON(url, options = {}) {
     const res = await fetchWithTimeout(url, options);
     const text = await res.text();
-
     let data = null;
     try {
       data = text ? JSON.parse(text) : null;
     } catch {
       data = text || null;
     }
-
     if (!res.ok) {
       const err = new Error("HTTP " + res.status);
       err.status = res.status;
@@ -219,11 +175,6 @@
       throw err;
     }
     return data;
-  }
-
-  function authHeaders() {
-    const token = getToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
   async function tryRoutesJSON(routeList, options = {}) {
@@ -240,7 +191,6 @@
   }
 
   async function tryRoutesOK(routeList, options = {}) {
-    // For ping only: any 2xx/3xx is OK; no JSON needed
     let lastErr = null;
     for (const p of routeList) {
       try {
@@ -257,33 +207,27 @@
     return { ok: false, error: lastErr };
   }
 
-  /* -------------------- SERVER STATUS -------------------- */
   async function pingServer() {
     setServerStatus("connecting");
     let ok = false;
-
     for (let i = 0; i <= PING_RETRIES; i++) {
       const r = await tryRoutesOK(ROUTES.health, {
         method: "GET",
         headers: { "Cache-Control": "no-cache" },
       });
-      if (r.ok) {
-        ok = true;
-        break;
-      }
+      if (r.ok) { ok = true; break; }
     }
-
     setServerStatus(ok ? "online" : "offline");
     return ok;
   }
 
-  /* -------------------- NAVIGATION -------------------- */
+  /* --------- NAV --------- */
   function showSection(tab) {
     const sections = {
-      market: $("section-market"),
-      queries: $("section-queries"),
-      projects: $("section-projects"),
-      account: $("section-account"),
+      market: $("section-market") || document.querySelector("#section-market"),
+      queries: $("section-queries") || document.querySelector("#section-queries"),
+      projects: $("section-projects") || document.querySelector("#section-projects"),
+      account: $("section-account") || document.querySelector("#section-account"),
     };
 
     Object.values(sections).forEach((s) => s && s.classList.remove("active"));
@@ -300,47 +244,102 @@
     });
   }
 
-  /* -------------------- AUTH UI -------------------- */
-  function uiAfterLogin(me) {
-    const forms = $("authForms");
-    const done = $("authDone");
+  /* --------- LOGO FIX (guaranteed) --------- */
+  function fixHeaderLogo() {
+    // Strategy 1: .logo img
+    let img = document.querySelector(".logo img");
+
+    // Strategy 2: first image inside header/appbar (the one near “SellCase”)
+    if (!img) {
+      const header =
+        document.querySelector("header") ||
+        document.querySelector(".appbar") ||
+        document.querySelector(".topbar") ||
+        document.querySelector(".header") ||
+        document.querySelector(".card.header") ||
+        document.body;
+
+      const imgs = header ? header.querySelectorAll("img") : [];
+      if (imgs && imgs.length) img = imgs[0];
+    }
+
+    if (!img) return;
+
+    const holder = img.parentElement;
+
+    // Make the holder a fixed square and force the img to fill it.
+    if (holder) {
+      holder.style.width = holder.style.width || "44px";
+      holder.style.height = holder.style.height || "44px";
+      holder.style.display = "grid";
+      holder.style.placeItems = "center";
+      holder.style.overflow = "hidden";
+      holder.style.borderRadius = holder.style.borderRadius || "12px";
+    }
+
+    img.style.width = "100%";
+    img.style.height = "100%";
+    img.style.objectFit = "cover";  // IMPORTANT: fill the square
+    img.style.display = "block";
+    img.style.padding = "0";        // remove any previous padding
+  }
+
+  /* --------- USER LABEL (email/name) --------- */
+  function setUserLabel({ fullName, email }) {
+    const title = $("userTitle") || document.querySelector("#userTitle");
+    const sub = $("userSubtitle") || document.querySelector("#userSubtitle");
+    const av = $("userAvatar") || document.querySelector("#userAvatar");
+
+    const bestName = String(fullName || "").trim();
+    const bestEmail = String(email || "").trim();
+
+    // Show email if name missing
+    const line1 = bestName || bestEmail || "Користувач";
+    const line2 = bestName ? (bestEmail || "") : (bestEmail ? "✅ Вхід виконано." : "✅ Вхід виконано.");
+
+    safeText(title, line1);
+    safeText(sub, line2 || "✅ Вхід виконано.");
+    if (av) av.textContent = initialsFrom(bestName || "U", bestEmail);
+  }
+
+  function uiAfterLogin(me, fallbackEmail) {
+    const forms = $("authForms") || document.querySelector("#authForms");
+    const done = $("authDone") || document.querySelector("#authDone");
     if (forms) forms.style.display = "none";
     if (done) done.style.display = "block";
 
-    safeText($("userTitle"), me.fullName || "Користувач");
-    safeText($("userSubtitle"), "✅ Вхід виконано.");
+    const email = me?.email || fallbackEmail || "";
+    const fullName = me?.fullName || "";
 
-    const avatar = $("userAvatar");
-    if (avatar) avatar.textContent = initialsFrom(me.fullName, me.email);
+    setUserLabel({ fullName, email });
 
-    safeText($("meId"), me.id ?? "—");
-    safeText($("meCreated"), formatDate(me.createdAt));
+    safeText($("meId") || document.querySelector("#meId"), me?.id ?? "—");
+    safeText($("meCreated") || document.querySelector("#meCreated"), formatDate(me?.createdAt));
 
-    if ($("meActive")) {
-      if (me.isActive === true) safeText($("meActive"), "Активний");
-      else if (me.isActive === false) safeText($("meActive"), "Неактивний");
-      else safeText($("meActive"), "—");
+    const activeEl = $("meActive") || document.querySelector("#meActive");
+    if (activeEl) {
+      if (me?.isActive === true) safeText(activeEl, "Активний");
+      else if (me?.isActive === false) safeText(activeEl, "Неактивний");
+      else safeText(activeEl, "—");
     }
   }
 
   function uiAfterLogout() {
-    const forms = $("authForms");
-    const done = $("authDone");
+    const forms = $("authForms") || document.querySelector("#authForms");
+    const done = $("authDone") || document.querySelector("#authDone");
     if (forms) forms.style.display = "block";
     if (done) done.style.display = "none";
   }
 
-  async function loadMeSilently() {
+  async function loadMeSilently(fallbackEmail) {
     if (!getToken()) return null;
-
     const r = await tryRoutesJSON(ROUTES.me, {
       method: "GET",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
     });
-
     if (!r.ok) return null;
     const me = normalizeMe(r.data);
-    uiAfterLogin(me);
+    uiAfterLogin(me, fallbackEmail);
     return me;
   }
 
@@ -356,16 +355,12 @@
   }
 
   async function loginSmart(email, password) {
-    // Many backends differ in field names. We try a few.
     const bodies = [
       { email, password },
       { username: email, password },
       { login: email, password },
       { user: email, password },
     ];
-
-    // Also try x-www-form-urlencoded if backend expects it
-    const jsonHeaders = { "Content-Type": "application/json" };
 
     let lastErr = null;
 
@@ -374,16 +369,14 @@
         try {
           const data = await fetchJSON(buildUrl(endpoint), {
             method: "POST",
-            headers: jsonHeaders,
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(b),
           });
-          const token = extractToken(data);
-          return { ok: true, data, token };
+          return { ok: true, data, token: extractToken(data) };
         } catch (e) {
           lastErr = e;
         }
 
-        // form encoded attempt
         try {
           const form = new URLSearchParams();
           Object.entries(b).forEach(([k, v]) => form.set(k, String(v)));
@@ -392,337 +385,85 @@
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: form.toString(),
           });
-          const token = extractToken(data);
-          return { ok: true, data, token };
+          return { ok: true, data, token: extractToken(data) };
         } catch (e) {
           lastErr = e;
         }
       }
     }
-
     return { ok: false, error: lastErr };
   }
 
-  function initAuth() {
-    const loginForm = $("loginForm");
-    const registerForm = $("registerForm");
+  /* --------- RESULTS RENDER (queries) --------- */
+  function ensureResultsBox() {
+    // Prefer existing container
+    let box = $("queryResults") || document.querySelector("#queryResults");
 
-    if (loginForm) {
-      loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        setError($("accountError"), "");
-        setHint("loginInfo", "");
+    if (box) return box;
 
-        const email = String($("loginEmail")?.value || "").trim();
-        const password = String($("loginPassword")?.value || "").trim();
+    // Try to place under queries form
+    const queriesSection =
+      $("section-queries") ||
+      document.querySelector("#section-queries") ||
+      document.querySelector('[data-tab="queries"]')?.closest("section") ||
+      document.body;
 
-        if (!email || !password) {
-          setError($("accountError"), "Будь ласка, введіть email та пароль.");
-          return;
-        }
+    // Find the run button and insert after its parent block
+    const btn = $("btnRunQuery") || document.querySelector("#btnRunQuery");
+    const anchor = btn ? btn.closest(".card") || btn.closest("div") : queriesSection;
 
-        try {
-          showToast("Виконуємо вхід…");
+    box = document.createElement("div");
+    box.id = "queryResults";
+    box.style.marginTop = "12px";
+    box.style.padding = "12px";
+    box.style.border = "1px solid #e5e7eb";
+    box.style.borderRadius = "16px";
+    box.style.background = "#fff";
+    box.style.boxShadow = "0 10px 22px rgba(2,6,23,.06)";
+    box.style.fontWeight = "900";
 
-          const r = await loginSmart(email, password);
-          if (!r.ok) throw r.error || new Error("login failed");
+    const title = document.createElement("div");
+    title.textContent = "Результати";
+    title.style.fontSize = "16px";
+    title.style.marginBottom = "8px";
 
-          if (r.token) setToken(r.token);
+    const pre = document.createElement("pre");
+    pre.style.whiteSpace = "pre-wrap";
+    pre.style.wordBreak = "break-word";
+    pre.style.fontSize = "12px";
+    pre.style.fontWeight = "700";
+    pre.style.margin = "0";
+    pre.id = "queryResultsPre";
+    pre.textContent = "Поки немає результатів.";
 
-          const me = await loadMeSilently();
-          if (!me) {
-            // If backend doesn’t have /me, still show user
-            uiAfterLogin({ fullName: "Користувач", email });
-          }
+    box.appendChild(title);
+    box.appendChild(pre);
 
-          await loadProjects(true);
-        } catch (err) {
-          setToken("");
-          uiAfterLogout();
-          setError(
-            $("accountError"),
-            "Не вдалося виконати вхід. Перевірте email/пароль і спробуйте ще раз."
-          );
-        }
-      });
+    if (anchor && anchor.parentNode) {
+      anchor.parentNode.insertBefore(box, anchor.nextSibling);
+    } else {
+      queriesSection.appendChild(box);
     }
 
-    if (registerForm) {
-      registerForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        setError($("accountError"), "");
-
-        const first_name = String($("regFirstName")?.value || "").trim();
-        const last_name = String($("regLastName")?.value || "").trim();
-        const email = String($("regEmail")?.value || "").trim();
-        const password = String($("regPassword")?.value || "").trim();
-
-        if (!email || !password || !first_name) {
-          setError($("accountError"), "Будь ласка, заповніть імʼя, email та пароль.");
-          return;
-        }
-
-        try {
-          showToast("Створюємо акаунт…");
-
-          const r = await tryRoutesJSON(ROUTES.register, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ first_name, last_name, email, password }),
-          });
-
-          if (!r.ok) throw r.error || new Error("register failed");
-
-          showToast("✅ Акаунт створено. Тепер увійдіть.");
-
-          if ($("regFirstName")) $("regFirstName").value = "";
-          if ($("regLastName")) $("regLastName").value = "";
-          if ($("regEmail")) $("regEmail").value = "";
-          if ($("regPassword")) $("regPassword").value = "";
-        } catch (err) {
-          setError(
-            $("accountError"),
-            "Не вдалося створити акаунт. Можливо, email вже використовується."
-          );
-        }
-      });
-    }
-
-    const btnLogout = $("btnLogout");
-    if (btnLogout) {
-      btnLogout.addEventListener("click", () => {
-        setToken("");
-        uiAfterLogout();
-        showToast("Ви вийшли з акаунта.");
-      });
-    }
-
-    const btnGoMarket = $("btnGoMarket");
-    if (btnGoMarket) btnGoMarket.addEventListener("click", () => showSection("market"));
+    return box;
   }
 
-  /* -------------------- PROJECTS -------------------- */
-  let cachedProjects = [];
+  function renderResults(data) {
+    const box = ensureResultsBox();
+    const pre = box.querySelector("#queryResultsPre");
+    if (!pre) return;
 
-  function renderProjectsList(projects) {
-    const box = $("projectsList");
-    const info = $("projectsInfo");
-    const err = $("projectsError");
-    setError(err, "");
-
-    if (!box) return;
-
-    if (!projects || !projects.length) {
-      safeText(box, "Проекти поки відсутні.");
-      safeText(info, "");
-      return;
-    }
-
-    safeText(info, `Знайдено: ${projects.length}`);
-    box.innerHTML = "";
-
-    const ul = document.createElement("ul");
-    ul.style.margin = "0";
-    ul.style.paddingLeft = "18px";
-    ul.style.fontWeight = "800";
-
-    projects.forEach((p) => {
-      const li = document.createElement("li");
-      li.textContent = `${projectLabel(p)} (ID: ${projectId(p)})`;
-      ul.appendChild(li);
-    });
-
-    box.appendChild(ul);
-  }
-
-  function fillMarketProjects(projects) {
-    const sel = $("marketProject");
-    if (!sel) return;
-
-    sel.innerHTML = "";
-    const opt0 = document.createElement("option");
-    opt0.value = "";
-    opt0.textContent = "Оберіть проект…";
-    sel.appendChild(opt0);
-
-    projects.forEach((p) => {
-      const opt = document.createElement("option");
-      opt.value = String(projectId(p));
-      opt.textContent = projectLabel(p);
-      sel.appendChild(opt);
-    });
-  }
-
-  async function loadProjects(silent = false) {
-    const err = $("projectsError");
-    if (!silent) setError(err, "");
-
-    const r = await tryRoutesJSON(ROUTES.projects, {
-      method: "GET",
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
-    });
-
-    if (!r.ok) {
-      cachedProjects = [];
-      fillMarketProjects([]);
-      renderProjectsList([]);
-      if (!silent) {
-        setError(err, "Не вдалося завантажити проекти. Спробуйте пізніше.");
-      }
-      return [];
-    }
-
-    const list = asArrayProjects(r.data);
-    cachedProjects = list;
-    fillMarketProjects(list);
-    renderProjectsList(list);
-    return list;
-  }
-
-  function initProjects() {
-    const btn = $("btnProjectsReload");
-    if (btn) btn.addEventListener("click", () => loadProjects(false));
-  }
-
-  /* -------------------- MARKET -------------------- */
-  let marketCursor = 0;
-
-  function resetMarketKpi() {
-    safeText($("kpiTypical"), "—");
-    safeText($("kpiDelta"), "—");
-    safeText($("kpiRange"), "—");
-    safeText($("kpiCount"), "—");
-  }
-
-  function applyMarketKpi(data) {
-    const typical =
-      data?.typical_price ?? data?.typical ?? data?.median ?? data?.p50 ?? null;
-
-    const delta =
-      data?.delta ?? data?.delta_typical ?? data?.typical_delta ?? null;
-
-    const min = data?.range_min ?? data?.min ?? data?.p10 ?? null;
-    const max = data?.range_max ?? data?.max ?? data?.p90 ?? null;
-
-    const count = data?.count ?? data?.total ?? data?.ads_count ?? null;
-
-    safeText($("kpiTypical"), moneyUAH(typical));
-
-    if (delta == null || Number.isNaN(Number(delta))) safeText($("kpiDelta"), "—");
-    else {
-      const d = Number(delta);
-      const sign = d > 0 ? "+" : "";
-      safeText($("kpiDelta"), `${sign}${moneyUAH(d).replace(" грн", "")} грн`);
-    }
-
-    if (min != null && max != null) safeText($("kpiRange"), `${moneyUAH(min)} — ${moneyUAH(max)}`);
-    else safeText($("kpiRange"), "—");
-
-    safeText($("kpiCount"), count != null ? String(count) : "—");
-  }
-
-  async function loadMarket() {
-    setError($("marketError"), "");
-    setHint("marketHint", "");
-
-    const project = String($("marketProject")?.value || "");
-    const points = Number($("marketPoints")?.value || 30);
-    const reliable = !!$("marketReliable")?.checked;
-
-    const offsetInput = $("marketOffset");
-    let offset = Number(offsetInput?.value || marketCursor);
-    if (Number.isNaN(offset) || offset < 0) offset = 0;
-
-    if (!project) {
-      setError($("marketError"), "Оберіть проект.");
-      return;
-    }
-
-    const params = new URLSearchParams();
-    params.set("project_id", project);
-    params.set("points", String(Math.max(5, Math.min(30, points || 30))));
-    params.set("offset", String(offset));
-    params.set("reliable", reliable ? "true" : "false");
-
+    // Pretty-print but keep small
+    let out = "";
     try {
-      showToast("Завантажуємо аналітику…");
-      const routeList = ROUTES.marketSummary.map((p) => p + "?" + params.toString());
-      const r = await tryRoutesJSON(routeList, {
-        method: "GET",
-        headers: { ...authHeaders(), "Content-Type": "application/json" },
-      });
-
-      if (!r.ok) throw r.error || new Error("market load failed");
-
-      resetMarketKpi();
-      applyMarketKpi(r.data);
-
-      marketCursor = offset;
-      if (offsetInput) offsetInput.value = String(offset);
-      setHint("marketHint", "Готово.");
-    } catch (err) {
-      resetMarketKpi();
-      setError($("marketError"), "Не вдалося завантажити аналітику. Спробуйте ще раз пізніше.");
+      out = JSON.stringify(data, null, 2);
+    } catch {
+      out = String(data);
     }
+    pre.textContent = out || "Порожня відповідь.";
   }
 
-    function initMarket() {
-    const btnLoad = $("btnMarketLoad");
-    if (btnLoad) btnLoad.addEventListener("click", loadMarket);
-
-    const btnPrev = $("btnPrev");
-    const btnNext = $("btnNext");
-    const offsetInput = $("marketOffset");
-    const pointsInput = $("marketPoints");
-
-    if (btnPrev) {
-      btnPrev.addEventListener("click", () => {
-        const points = Number(pointsInput?.value || 30);
-        let offset = Number(offsetInput?.value || marketCursor);
-        if (Number.isNaN(offset)) offset = 0;
-        offset = Math.max(0, offset - Math.max(1, points));
-        marketCursor = offset;
-        if (offsetInput) offsetInput.value = String(offset);
-        loadMarket();
-      });
-    }
-
-    if (btnNext) {
-      btnNext.addEventListener("click", () => {
-        const points = Number(pointsInput?.value || 30);
-        let offset = Number(offsetInput?.value || marketCursor);
-        if (Number.isNaN(offset)) offset = 0;
-        offset = offset + Math.max(1, points);
-        marketCursor = offset;
-        if (offsetInput) offsetInput.value = String(offset);
-        loadMarket();
-      });
-    }
-
-    const btnSave = $("btnSaveQuery");
-    if (btnSave) {
-      btnSave.addEventListener("click", () => {
-        const project = String($("marketProject")?.value || "");
-        const reliable = !!$("marketReliable")?.checked;
-        const points = Number($("marketPoints")?.value || 30);
-        const offset = Number($("marketOffset")?.value || 0);
-
-        if (!project) {
-          showToast("Спочатку оберіть проект.");
-          return;
-        }
-
-        const payload = { type: "market", project_id: project, reliable, points, offset, ts: Date.now() };
-        const saved = loadSavedQueries();
-        saved.unshift(payload);
-        saveSavedQueries(saved);
-        renderSavedQueries();
-        showToast("✅ Запит збережено.");
-      });
-    }
-  }
-
-  /* -------------------- QUERIES -------------------- */
+  /* --------- SAVED QUERIES --------- */
   function loadSavedQueries() {
     try {
       const raw = localStorage.getItem(LS_SAVED_QUERIES) || "[]";
@@ -740,7 +481,7 @@
   }
 
   function renderSavedQueries() {
-    const box = $("savedQueries");
+    const box = $("savedQueries") || document.querySelector("#savedQueries");
     if (!box) return;
 
     const saved = loadSavedQueries();
@@ -772,8 +513,7 @@
 
       const t = document.createElement("div");
       t.style.fontWeight = "1100";
-      t.textContent =
-        q.type === "market" ? `Market • Project ${q.project_id}` : `Запит • ${q.query || "—"}`;
+      t.textContent = `Запит • ${q.query || "—"}`;
 
       const d = document.createElement("div");
       d.style.fontWeight = "800";
@@ -789,19 +529,10 @@
       btn.type = "button";
       btn.textContent = "Відкрити";
       btn.addEventListener("click", () => {
-        if (q.type === "market") {
-          showSection("market");
-          if ($("marketProject")) $("marketProject").value = String(q.project_id || "");
-          if ($("marketPoints")) $("marketPoints").value = String(q.points ?? 30);
-          if ($("marketOffset")) $("marketOffset").value = String(q.offset ?? 0);
-          if ($("marketReliable")) $("marketReliable").checked = !!q.reliable;
-          showToast("Збережений запит підставлено.");
-        } else {
-          showSection("queries");
-          if ($("queryText")) $("queryText").value = String(q.query || "");
-          if ($("queryCategory")) $("queryCategory").value = String(q.category || "");
-          showToast("Збережений запит підставлено.");
-        }
+        showSection("queries");
+        const input = $("queryText") || document.querySelector("#queryText") || document.querySelector('input[type="text"]');
+        if (input) input.value = String(q.query || "");
+        showToast("Збережений запит підставлено.");
       });
 
       card.appendChild(left);
@@ -812,15 +543,19 @@
     box.appendChild(wrap);
   }
 
+  /* --------- QUERIES --------- */
   function initQueries() {
     renderSavedQueries();
 
-    const btnRun = $("btnRunQuery");
+    const btnRun = $("btnRunQuery") || document.querySelector("#btnRunQuery");
     if (!btnRun) return;
 
     btnRun.addEventListener("click", async () => {
-      const q = String($("queryText")?.value || "").trim();
-      const category = String($("queryCategory")?.value || "").trim();
+      const input = $("queryText") || document.querySelector("#queryText") || document.querySelector('input[type="text"]');
+      const q = String(input?.value || "").trim();
+
+      const catSel = $("queryCategory") || document.querySelector("#queryCategory");
+      const category = String(catSel?.value || "").trim();
 
       if (!q) {
         showToast("Введіть запит для пошуку.");
@@ -834,12 +569,13 @@
       try {
         showToast("Шукаємо…");
 
-        // Prefer real query endpoint; if not supported, at least ensure analytics reachable
+        // Try real query endpoint first
         let r = await tryRoutesJSON(
           ROUTES.queryRun.map((p) => p + "?" + params.toString()),
           { method: "GET", headers: { ...authHeaders(), "Content-Type": "application/json" } }
         );
 
+        // Fallback: top-brands endpoint (so you always see SOME data if backend works)
         if (!r.ok) {
           r = await tryRoutesJSON(ROUTES.topBrands, {
             method: "GET",
@@ -849,55 +585,218 @@
 
         if (!r.ok) throw r.error || new Error("search failed");
 
-        showToast("✅ Запит виконано. Вивід результатів підключимо наступним кроком.");
+        renderResults(r.data);
 
         const saved = loadSavedQueries();
-        saved.unshift({ type: "query", query: q, category, ts: Date.now() });
+        saved.unshift({ query: q, category, ts: Date.now() });
         saveSavedQueries(saved);
         renderSavedQueries();
+
+        showToast("✅ Готово.");
       } catch {
         showToast("Не вдалося виконати пошук. Спробуйте пізніше.");
       }
     });
   }
 
-  /* -------------------- LOGO FIX (fill the cell) -------------------- */
-  function initLogoFix() {
-    // Top-left small logo in appbar
-    const logoImg = document.querySelector(".logo img");
-    if (logoImg) {
-      // Fill the 44x44 box nicely
-      logoImg.style.width = "100%";
-      logoImg.style.height = "100%";
-      logoImg.style.objectFit = "contain";
-      logoImg.style.padding = "6px";
-      logoImg.style.display = "block";
+  /* --------- AUTH --------- */
+  function initAuth() {
+    const loginForm = $("loginForm") || document.querySelector("#loginForm");
+    const registerForm = $("registerForm") || document.querySelector("#registerForm");
+    const errBox = $("accountError") || document.querySelector("#accountError");
+
+    if (loginForm) {
+      loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        setError(errBox, "");
+
+        const emailEl = $("loginEmail") || document.querySelector("#loginEmail");
+        const passEl = $("loginPassword") || document.querySelector("#loginPassword");
+        const email = String(emailEl?.value || "").trim();
+        const password = String(passEl?.value || "").trim();
+
+        if (!email || !password) {
+          setError(errBox, "Будь ласка, введіть email та пароль.");
+          return;
+        }
+
+        try {
+          showToast("Виконуємо вхід…");
+          const r = await loginSmart(email, password);
+          if (!r.ok) throw r.error || new Error("login failed");
+
+          if (r.token) setToken(r.token);
+
+          const me = await loadMeSilently(email);
+          if (!me) {
+            // even if /me absent, show email
+            uiAfterLogin({ fullName: "", email, id: "—", createdAt: "", isActive: null }, email);
+          }
+
+          showToast("✅ Ви увійшли.");
+        } catch {
+          setToken("");
+          uiAfterLogout();
+          setError(errBox, "Не вдалося виконати вхід. Перевірте email/пароль і спробуйте ще раз.");
+        }
+      });
     }
 
-    // Hero logo (market)
-    const heroLogo = $("brandLogo");
-    if (heroLogo) {
-      heroLogo.style.objectFit = "contain";
+    if (registerForm) {
+      registerForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        setError(errBox, "");
+
+        const first = String(($("regFirstName") || document.querySelector("#regFirstName"))?.value || "").trim();
+        const last = String(($("regLastName") || document.querySelector("#regLastName"))?.value || "").trim();
+        const email = String(($("regEmail") || document.querySelector("#regEmail"))?.value || "").trim();
+        const password = String(($("regPassword") || document.querySelector("#regPassword"))?.value || "").trim();
+
+        if (!email || !password || !first) {
+          setError(errBox, "Будь ласка, заповніть імʼя, email та пароль.");
+          return;
+        }
+
+        try {
+          showToast("Створюємо акаунт…");
+          const r = await tryRoutesJSON(ROUTES.register, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ first_name: first, last_name: last, email, password }),
+          });
+          if (!r.ok) throw r.error || new Error("register failed");
+          showToast("✅ Акаунт створено. Тепер увійдіть.");
+        } catch {
+          setError(errBox, "Не вдалося створити акаунт. Можливо, email вже використовується.");
+        }
+      });
+    }
+
+    const btnLogout = $("btnLogout") || document.querySelector("#btnLogout");
+    if (btnLogout) {
+      btnLogout.addEventListener("click", () => {
+        setToken("");
+        uiAfterLogout();
+        showToast("Ви вийшли з акаунта.");
+      });
+    }
+
+    const btnGoMarket = $("btnGoMarket") || document.querySelector("#btnGoMarket");
+    if (btnGoMarket) btnGoMarket.addEventListener("click", () => showSection("market"));
+  }
+
+  /* --------- PROJECTS minimal (keep your old HTML working) --------- */
+  function asArrayProjects(payload) {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload.items)) return payload.items;
+    if (Array.isArray(payload.projects)) return payload.projects;
+    if (Array.isArray(payload.data)) return payload.data;
+    return [];
+  }
+  function projectLabel(p) {
+    const name = p?.name || p?.title || p?.project_name || p?.slug || `Проект #${p?.id ?? "—"}`;
+    return String(name);
+  }
+  function projectId(p) {
+    return p?.id ?? p?.project_id ?? p?.projectId ?? p?.slug ?? p?.name ?? "";
+  }
+
+  async function loadProjectsSilently() {
+    const r = await tryRoutesJSON(ROUTES.projects, {
+      method: "GET",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+    });
+    if (!r.ok) return [];
+
+    const list = asArrayProjects(r.data);
+    const sel = $("marketProject") || document.querySelector("#marketProject");
+    if (sel) {
+      sel.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = "";
+      opt0.textContent = "Оберіть проект…";
+      sel.appendChild(opt0);
+
+      list.forEach((p) => {
+        const opt = document.createElement("option");
+        opt.value = String(projectId(p));
+        opt.textContent = projectLabel(p);
+        sel.appendChild(opt);
+      });
+    }
+    return list;
+  }
+
+  /* --------- MARKET minimal KPI render if ids exist --------- */
+  function applyMarketKpi(data) {
+    const typical = data?.typical_price ?? data?.typical ?? data?.median ?? data?.p50 ?? null;
+    const min = data?.range_min ?? data?.min ?? data?.p10 ?? null;
+    const max = data?.range_max ?? data?.max ?? data?.p90 ?? null;
+    const count = data?.count ?? data?.total ?? data?.ads_count ?? null;
+
+    safeText($("kpiTypical") || document.querySelector("#kpiTypical"), moneyUAH(typical));
+    safeText($("kpiRange") || document.querySelector("#kpiRange"), (min != null && max != null) ? `${moneyUAH(min)} — ${moneyUAH(max)}` : "—");
+    safeText($("kpiCount") || document.querySelector("#kpiCount"), count != null ? String(count) : "—");
+  }
+
+  async function loadMarket() {
+    const err = $("marketError") || document.querySelector("#marketError");
+    setError(err, "");
+
+    const sel = $("marketProject") || document.querySelector("#marketProject");
+    const project = String(sel?.value || "");
+    if (!project) { setError(err, "Оберіть проект."); return; }
+
+    const pointsEl = $("marketPoints") || document.querySelector("#marketPoints");
+    const offsetEl = $("marketOffset") || document.querySelector("#marketOffset");
+    const relEl = $("marketReliable") || document.querySelector("#marketReliable");
+
+    const points = Number(pointsEl?.value || 30);
+    const offset = Number(offsetEl?.value || 0);
+    const reliable = !!relEl?.checked;
+
+    const params = new URLSearchParams();
+    params.set("project_id", project);
+    params.set("points", String(Math.max(5, Math.min(30, points || 30))));
+    params.set("offset", String(Number.isNaN(offset) ? 0 : offset));
+    params.set("reliable", reliable ? "true" : "false");
+
+    try {
+      showToast("Завантажуємо аналітику…");
+      const r = await tryRoutesJSON(
+        ROUTES.marketSummary.map((p) => p + "?" + params.toString()),
+        { method: "GET", headers: { ...authHeaders(), "Content-Type": "application/json" } }
+      );
+      if (!r.ok) throw r.error || new Error("market failed");
+      applyMarketKpi(r.data);
+      showToast("✅ Готово.");
+    } catch {
+      setError(err, "Не вдалося завантажити аналітику. Спробуйте ще раз пізніше.");
     }
   }
 
-  /* -------------------- BOOT -------------------- */
+  function initMarket() {
+    const btnLoad = $("btnMarketLoad") || document.querySelector("#btnMarketLoad");
+    if (btnLoad) btnLoad.addEventListener("click", loadMarket);
+  }
+
+  /* --------- BOOT --------- */
   async function boot() {
     initNav();
     initAuth();
-    initProjects();
-    initMarket();
     initQueries();
-    initLogoFix();
+    initMarket();
 
-    // Ping loop
+    // Fix logo immediately + after short delay (some layouts render late)
+    fixHeaderLogo();
+    setTimeout(fixHeaderLogo, 200);
+    setTimeout(fixHeaderLogo, 800);
+
     await pingServer();
     setInterval(pingServer, PING_INTERVAL_MS);
 
-    // Load projects
-    await loadProjects(true);
-
-    // Restore session if token exists
+    await loadProjectsSilently();
     await loadMeSilently();
   }
 
