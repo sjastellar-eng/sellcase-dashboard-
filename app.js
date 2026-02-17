@@ -1,43 +1,24 @@
-;(() => {
+// app.js — SellCase Dashboard (aligned with /openapi.json)
+// Backend base: https://sellcase-backend.onrender.com
+
+(() => {
   "use strict";
 
-  /* =========================
-     CONFIG
-  ========================= */
-  const API_BASE = "https://sellcase-backend.onrender.com"; // твой backend
-  const LS_TOKEN_KEY = "sellcase_token";
+  const API_BASE = "https://sellcase-backend.onrender.com";
 
-  const ROUTES = {
-    health: "/health",
-    register: "/auth/register",
-    login: "/auth/login",
-    me: "/auth/me",
-    projects: "/olx/projects",
-    market: (projectId) => `/olx/projects/${encodeURIComponent(projectId)}/market`,
-    marketHistory: (projectId) => `/olx/projects/${encodeURIComponent(projectId)}/market/history`,
-    ads: (projectId) => `/olx/projects/${encodeURIComponent(projectId)}/ads`,
-    snapshots: (projectId) => `/olx/projects/${encodeURIComponent(projectId)}/snapshots`,
-  };
+  const PING_INTERVAL_MS = 30_000;
+  const DEFAULT_HISTORY_LIMIT = 30;
+  const OFFSET_STEP = 1; // шаг по "истории" в API = offset (сколько периодов назад)
 
-  /* =========================
-     HELPERS
-  ========================= */
+  /* -------------------- DOM helpers -------------------- */
   const $ = (id) => document.getElementById(id);
 
-  function safeText(el, val) {
-    if (!el) return;
-    el.textContent = val == null ? "—" : String(val);
-  }
+  const show = (el) => { if (el) el.style.display = ""; };
+  const hide = (el) => { if (el) el.style.display = "none"; };
 
-  function setError(el, msg) {
+  function safeText(el, value) {
     if (!el) return;
-    if (!msg) {
-      el.classList.remove("show");
-      el.textContent = "";
-      return;
-    }
-    el.textContent = msg;
-    el.classList.add("show");
+    el.textContent = (value === undefined || value === null || value === "") ? "—" : String(value);
   }
 
   function showToast(msg) {
@@ -45,65 +26,152 @@
     if (!t) return;
     t.textContent = msg;
     t.classList.add("show");
-    clearTimeout(showToast._t);
-    showToast._t = setTimeout(() => t.classList.remove("show"), 2400);
+    setTimeout(() => t.classList.remove("show"), 2800);
   }
+
+  function setError(el, msg) {
+    if (!el) return;
+    const text = msg ? String(msg) : "";
+    el.textContent = text;
+    if (text) el.classList.add("show");
+    else el.classList.remove("show");
+  }
+
+  /* -------------------- Token storage -------------------- */
+  const TOKEN_KEY = "sellcase_token";
 
   function getToken() {
-    return localStorage.getItem(LS_TOKEN_KEY) || "";
+    return localStorage.getItem(TOKEN_KEY) || "";
   }
-  function setToken(t) {
-    if (!t) localStorage.removeItem(LS_TOKEN_KEY);
-    else localStorage.setItem(LS_TOKEN_KEY, t);
+  function setToken(token) {
+    localStorage.setItem(TOKEN_KEY, token || "");
+  }
+  function clearToken() {
+    localStorage.removeItem(TOKEN_KEY);
   }
 
+  /* -------------------- API helpers -------------------- */
   function authHeaders() {
     const t = getToken();
     return t ? { Authorization: `Bearer ${t}` } : {};
   }
 
-  async function apiJSON(path, { method = "GET", headers = {}, body = null } = {}) {
-    const url = path.startsWith("http") ? path : (API_BASE + path);
-    const res = await fetch(url, {
-      method,
-      headers: {
-        ...headers,
-        ...authHeaders(),
-      },
-      body,
-    });
+  // Try to parse FastAPI errors nicely
+  async function parseErrorResponse(resp) {
+    let text = "";
+    try {
+      const data = await resp.json();
 
-    // если вдруг сервер отдает HTML при ошибке — тоже аккуратно прочитаем
-    const ct = (res.headers.get("content-type") || "").toLowerCase();
-    let data = null;
+      // FastAPI often: {detail: "..."} or {detail: [{loc, msg, type}, ...]}
+      if (typeof data?.detail === "string") return data.detail;
 
-    if (ct.includes("application/json")) {
-      data = await res.json().catch(() => null);
-    } else {
-      const text = await res.text().catch(() => "");
-      data = text ? { detail: text } : null;
+      if (Array.isArray(data?.detail)) {
+        // Join all validation messages
+        const msgs = data.detail
+          .map((x) => {
+            const loc = Array.isArray(x?.loc) ? x.loc.join(".") : "";
+            const msg = x?.msg || "";
+            return loc ? `${loc}: ${msg}` : msg;
+          })
+          .filter(Boolean);
+        if (msgs.length) return msgs.join(" | ");
+      }
+
+      // Fallback: stringify short
+      text = JSON.stringify(data);
+      if (text && text.length > 400) text = text.slice(0, 400) + "…";
+      return text || `HTTP ${resp.status}`;
+    } catch {
+      try {
+        const t = await resp.text();
+        return t || `HTTP ${resp.status}`;
+      } catch {
+        return `HTTP ${resp.status}`;
+      }
     }
-
-    if (!res.ok) {
-      const message =
-        (data && (data.detail || data.message)) ||
-        `HTTP ${res.status}`;
-      const err = new Error(message);
-      err.status = res.status;
-      err.data = data;
-      throw err;
-    }
-    return data;
   }
 
-  /* =========================
-     NAV / SECTIONS
-  ========================= */
-  function setActiveTab(tabName) {
-    document.querySelectorAll(".tab").forEach((b) => {
-      b.classList.toggle("active", b.dataset.tab === tabName);
+  async function apiFetch(path, { method = "GET", headers = {}, body = null, timeoutMs = 25_000 } = {}) {
+    const controller = new AbortController();
+    const to = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const resp = await fetch(`${API_BASE}${path}`, {
+        method,
+        headers,
+        body,
+        signal: controller.signal,
+      });
+
+      if (!resp.ok) {
+        const msg = await parseErrorResponse(resp);
+        const err = new Error(msg || "Request failed");
+        err.status = resp.status;
+        throw err;
+      }
+
+      return resp;
+    } finally {
+      clearTimeout(to);
+    }
+  }
+
+  async function apiGetJson(path, opts = {}) {
+    const resp = await apiFetch(path, {
+      ...opts,
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        ...(opts.headers || {}),
+      },
+    });
+    return resp.json();
+  }
+
+  async function apiPostJson(path, payload, opts = {}) {
+    const resp = await apiFetch(path, {
+      ...opts,
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...(opts.headers || {}),
+      },
+      body: JSON.stringify(payload),
+    });
+    // some endpoints may return empty
+    const ct = resp.headers.get("content-type") || "";
+    if (ct.includes("application/json")) return resp.json();
+    return null;
+  }
+
+  async function apiPostForm(path, formObj, opts = {}) {
+    const form = new URLSearchParams();
+    Object.entries(formObj || {}).forEach(([k, v]) => form.set(k, String(v ?? "")));
+
+    const resp = await apiFetch(path, {
+      ...opts,
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        ...(opts.headers || {}),
+      },
+      body: form.toString(),
+    });
+    return resp.json();
+  }
+
+  /* -------------------- UI: Tabs -------------------- */
+  function setTab(tabName) {
+    // buttons
+    const tabs = document.querySelectorAll(".tab");
+    tabs.forEach((b) => {
+      const active = b.dataset.tab === tabName;
+      b.classList.toggle("active", active);
     });
 
+    // sections
     const map = {
       market: "section-market",
       queries: "section-queries",
@@ -111,116 +179,132 @@
       account: "section-account",
     };
 
-    const targetId = map[tabName];
-    document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
-    const sec = $(targetId);
-    if (sec) sec.classList.add("active");
-  }
-
-  function initNav() {
-    document.querySelectorAll(".tab").forEach((b) => {
-      b.addEventListener("click", () => setActiveTab(b.dataset.tab));
+    Object.entries(map).forEach(([k, id]) => {
+      const el = $(id);
+      if (!el) return;
+      el.classList.toggle("active", k === tabName);
     });
   }
 
-  /* =========================
-     SERVER STATUS
-  ========================= */
+  function initNav() {
+    const nav = $("nav");
+    if (!nav) return;
+
+    nav.addEventListener("click", (e) => {
+      const btn = e.target.closest(".tab");
+      if (!btn) return;
+      setTab(btn.dataset.tab);
+    });
+  }
+
+  /* -------------------- Server status -------------------- */
+  function setServerStatus(isOk, label) {
+    const s = $("serverStatus");
+    if (!s) return;
+    const dot = s.querySelector(".dot");
+    const text = s.querySelector("span:last-child");
+    if (dot) {
+      dot.classList.remove("red", "green");
+      dot.classList.add(isOk ? "green" : "red");
+    }
+    if (text) text.textContent = label || (isOk ? "Online" : "Offline");
+  }
+
   async function pingServer() {
-    const box = $("serverStatus");
-    if (!box) return;
-
-    const dot = box.querySelector(".dot");
-    const text = box.querySelector("span:last-child");
-
     try {
-      // health может быть /health или / — оставим один
-      await apiJSON(ROUTES.health, { method: "GET", headers: { "Accept": "application/json" } });
-      dot?.classList.remove("red");
-      dot?.classList.add("green");
-      if (text) text.textContent = "Online";
+      await apiGetJson("/health");
+      setServerStatus(true, "Online");
     } catch {
-      dot?.classList.remove("green");
-      dot?.classList.add("red");
-      if (text) text.textContent = "Offline";
+      setServerStatus(false, "Offline");
     }
   }
 
-  /* =========================
-     AUTH UI
-  ========================= */
+  /* -------------------- Auth UI -------------------- */
   function uiAfterLogout() {
-    const forms = $("authForms");
-    const done = $("authDone");
-    if (forms) forms.style.display = "";
-    if (done) done.style.display = "none";
+    show($("authForms"));
+    hide($("authDone"));
+    setError($("accountError"), "");
+    safeText($("loginInfo"), "");
   }
 
   function uiAfterLogin(me) {
-    const forms = $("authForms");
-    const done = $("authDone");
-    if (forms) forms.style.display = "none";
-    if (done) done.style.display = "";
+    hide($("authForms"));
+    show($("authDone"));
 
-    const fullName = [me?.first_name, me?.last_name].filter(Boolean).join(" ").trim() || me?.email || "Користувач";
-    safeText($("userTitle"), fullName);
-    safeText($("meId"), me?.id ?? "—");
-    safeText($("meCreated"), me?.created_at ?? "—");
-    safeText($("meActive"), me?.is_active ?? "—");
+    const first = me?.first_name || "";
+    const last = me?.last_name || "";
+    const email = me?.email || "";
+    const title = (first || last) ? `${first} ${last}`.trim() : (email || "Користувач");
 
-    // аватар буква
-    const av = $("userAvatar");
-    if (av) av.textContent = (fullName[0] || "U").toUpperCase();
+    safeText($("userTitle"), title);
+    safeText($("meId"), me?.id);
+    safeText($("meCreated"), me?.created_at || me?.created || "");
+    safeText($("meActive"), (me?.is_active === true) ? "Активний" : "—");
+
+    const avatar = $("userAvatar");
+    if (avatar) {
+      const letter = (title || "U").trim().charAt(0).toUpperCase();
+      avatar.textContent = letter || "U";
+    }
   }
 
   async function loadMeSilently() {
-    const me = await apiJSON(ROUTES.me, { method: "GET", headers: { "Accept": "application/json" } });
-    uiAfterLogin(me);
-    return me;
+    const token = getToken();
+    if (!token) {
+      uiAfterLogout();
+      return;
+    }
+    try {
+      const me = await apiGetJson("/auth/me", { headers: { ...authHeaders() } });
+      uiAfterLogin(me);
+    } catch (e) {
+      // token invalid/expired
+      clearToken();
+      uiAfterLogout();
+    }
   }
 
   function initAuth() {
     const errBox = $("accountError");
-    const loginForm = $("loginForm");
-    const registerForm = $("registerForm");
 
-    // LOGIN
+    const loginForm = $("loginForm");
     if (loginForm) {
       loginForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         setError(errBox, "");
+
         const email = String($("loginEmail")?.value || "").trim();
         const password = String($("loginPassword")?.value || "");
 
         if (!email || !password) {
-          setError(errBox, "Будь ласка, введіть email і пароль.");
+          setError(errBox, "Будь ласка, заповніть email та пароль.");
           return;
         }
 
         try {
-          showToast("Входимо...");
-          const data = await apiJSON(ROUTES.login, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Accept": "application/json" },
-            body: JSON.stringify({ email, password }),
+          showToast("Входимо…");
+
+          // Swagger: /auth/login uses application/x-www-form-urlencoded (OAuth2PasswordRequestForm-like)
+          const tokenResp = await apiPostForm("/auth/login", {
+            username: email,
+            password,
           });
 
-          // поддержка разных ключей: access_token / token
-          const token = data?.access_token || data?.token || "";
-          if (!token) throw new Error("Сервер не повернув token.");
+          const access = tokenResp?.access_token;
+          if (!access) throw new Error("Не отримали access_token від сервера.");
 
-          setToken(token);
+          setToken(access);
           showToast("✅ Вхід успішний.");
 
-          await loadProjectsSilently();
           await loadMeSilently();
+          await loadProjectsSilently(); // обновим проекты для Market
         } catch (err) {
           setError(errBox, err?.message || "Не вдалося увійти.");
         }
       });
     }
 
-    // REGISTER
+    const registerForm = $("registerForm");
     if (registerForm) {
       registerForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -232,46 +316,49 @@
         const password = String($("regPassword")?.value || "");
 
         if (!first || !email || !password) {
-          setError(errBox, "Будь ласка, заповніть ім’я, email та пароль.");
+          setError(errBox, "Будь ласка, заповніть імʼя, email та пароль.");
           return;
         }
 
         try {
-          showToast("Створюємо акаунт...");
-          await apiJSON(ROUTES.register, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Accept": "application/json" },
-            body: JSON.stringify({ first_name: first, last_name: last, email, password }),
+          showToast("Створюємо акаунт…");
+
+          // Swagger: UserCreate
+          await apiPostJson("/auth/register", {
+            first_name: first,
+            last_name: last,
+            email,
+            password,
           });
 
           showToast("✅ Акаунт створено. Тепер увійдіть.");
-          // Важно: не автологин — как ты и хотел
+
+          // НЕ автологинимся (как ты хотел раньше) — просто очищаем пароль
+          if ($("regPassword")) $("regPassword").value = "";
+          // можно подсказать заполнить логин
+          if ($("loginEmail")) $("loginEmail").value = email;
         } catch (err) {
           setError(errBox, err?.message || "Не вдалося створити акаунт.");
         }
       });
     }
 
-    // LOGOUT
     const btnLogout = $("btnLogout");
     if (btnLogout) {
       btnLogout.addEventListener("click", () => {
-        setToken("");
+        clearToken();
         uiAfterLogout();
         showToast("Ви вийшли з акаунта.");
       });
     }
 
-    // GO MARKET
     const btnGoMarket = $("btnGoMarket");
     if (btnGoMarket) {
-      btnGoMarket.addEventListener("click", () => setActiveTab("market"));
+      btnGoMarket.addEventListener("click", () => setTab("market"));
     }
   }
 
-  /* =========================
-     PROJECTS
-  ========================= */
+  /* -------------------- Projects -------------------- */
   function asArrayProjects(payload) {
     if (!payload) return [];
     if (Array.isArray(payload)) return payload;
@@ -282,29 +369,43 @@
   }
 
   function projectLabel(p) {
-    return String(p?.name || p?.title || p?.project_name || p?.slug || p?.id || "—");
+    const name = p?.name || p?.title || p?.project_name || p?.slug || `Project #${p?.id ?? p?.project_id ?? ""}`;
+    return String(name);
   }
+
   function projectId(p) {
-    return p?.id ?? p?.project_id ?? p?.projectId ?? p?.slug ?? "";
+    return p?.id ?? p?.project_id ?? p?.projectId ?? null;
   }
 
   async function loadProjectsSilently() {
-    // если нет токена — просто не грузим (и не ругаемся)
-    if (!getToken()) return [];
+    const token = getToken();
+    const sel = $("marketProject");
+    const info = $("projectsInfo");
+    const listEl = $("projectsList");
+    const errEl = $("projectsError");
+
+    if (sel) {
+      sel.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = "";
+      opt0.textContent = "Оберіть проект…";
+      sel.appendChild(opt0);
+    }
+
+    if (!token) {
+      safeText(info, "Увійдіть, щоб бачити проєкти.");
+      safeText(listEl, "—");
+      setError(errEl, "");
+      return [];
+    }
 
     try {
-      const data = await apiJSON(ROUTES.projects, { method: "GET", headers: { "Accept": "application/json" } });
-      const list = asArrayProjects(data);
+      setError(errEl, "");
+      const projects = await apiGetJson("/olx/projects/", { headers: { ...authHeaders() } });
+      const list = asArrayProjects(projects);
 
-      // select в Market
-      const sel = $("marketProject");
+      // Fill Market select
       if (sel) {
-        sel.innerHTML = "";
-        const opt0 = document.createElement("option");
-        opt0.value = "";
-        opt0.textContent = "Оберіть проект...";
-        sel.appendChild(opt0);
-
         list.forEach((p) => {
           const opt = document.createElement("option");
           opt.value = String(projectId(p));
@@ -313,23 +414,38 @@
         });
       }
 
-      // Projects section list
-      const pl = $("projectsList");
-      if (pl) {
-        if (!list.length) pl.textContent = "—";
-        else {
-          pl.innerHTML = list
-            .map((p) => `• ${projectLabel(p)} (id: ${projectId(p)})`)
-            .join("<br/>");
+      // Render Projects section
+      if (listEl) {
+        if (!list.length) {
+          listEl.textContent = "Проєктів поки немає. Створіть проект через Swagger або додамо форму на фронті.";
+        } else {
+          const html = list
+            .map((p) => {
+              const id = projectId(p);
+              const created = p?.created_at || "";
+              const active = (p?.is_active === true) ? "✅ активний" : "—";
+              const url = p?.search_url || "";
+              return `
+                <div style="padding:12px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;box-shadow:0 8px 18px rgba(2,6,23,.06);margin:10px 0;">
+                  <div style="font-weight:1200;">${escapeHtml(projectLabel(p))}</div>
+                  <div style="margin-top:4px;color:#6b7280;font-weight:800;font-size:12px;">
+                    ID: ${escapeHtml(String(id))} • ${escapeHtml(active)} ${created ? "• " + escapeHtml(created) : ""}
+                  </div>
+                  ${url ? `<div style="margin-top:6px;color:#6b7280;font-weight:800;font-size:12px;word-break:break-all;">${escapeHtml(url)}</div>` : ""}
+                </div>
+              `;
+            })
+            .join("");
+          listEl.innerHTML = html;
         }
       }
 
-      safeText($("projectsInfo"), list.length ? `Знайдено: ${list.length}` : "");
-      setError($("projectsError"), "");
+      safeText(info, `Проєктів: ${list.length}`);
       return list;
     } catch (err) {
-      // если токен умер — покажем в Projects, но не ломаем всё
-      setError($("projectsError"), err?.message || "Не вдалося завантажити проекти.");
+      setError(errEl, err?.message || "Не вдалося завантажити проєкти.");
+      safeText(info, "");
+      if (listEl) listEl.textContent = "—";
       return [];
     }
   }
@@ -339,197 +455,252 @@
     if (btn) btn.addEventListener("click", loadProjectsSilently);
   }
 
-  /* =========================
-     MARKET
-  ========================= */
-  function formatMoneyUAH(v) {
-    if (v == null || v === "—") return "—";
-    const n = Number(v);
-    if (!Number.isFinite(n)) return String(v);
-    // без лишней магии: пробелы/грн
-    return `${Math.round(n).toLocaleString("uk-UA")} грн`;
+  /* -------------------- Market -------------------- */
+  let marketOffset = 0;
+
+  function formatMoney(value, currency = "UAH") {
+    if (value === null || value === undefined) return "—";
+    const n = Number(value);
+    if (!Number.isFinite(n)) return String(value);
+    try {
+      return new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 0 }).format(n) + ` ${currency}`;
+    } catch {
+      return `${Math.round(n)} ${currency}`;
+    }
   }
 
   function applyMarketKpi(data) {
-    // поддержим несколько форматов
-    const typical =
-      data?.typical_price ?? data?.typical ?? data?.last?.median_price ?? data?.last?.avg_price ?? null;
+    // Swagger пример для market/history показывает:
+    // { project_id, last: {...}, prev: {...}, delta: {...} } — по скрину так и есть.
+    // А market/overview может быть иначе. Мы работаем именно с market/history.
+    const currency = data?.currency || "UAH";
 
-    const min =
-      data?.range_min ?? data?.min ?? data?.last?.p25_price ?? data?.last?.min_price ?? null;
+    const last = data?.last || null;
+    const prev = data?.prev || null;
+    const delta = data?.delta || null;
 
-    const max =
-      data?.range_max ?? data?.max ?? data?.last?.p75_price ?? data?.last?.max_price ?? null;
+    const typical = last?.median_price ?? last?.avg_price ?? last?.p50_price ?? null;
+    const count = last?.items_count ?? last?.count ?? null;
 
-    const count =
-      data?.count ?? data?.total ?? data?.ads_count ?? data?.last?.items_count ?? null;
+    const min = last?.min_price ?? last?.p25_price ?? null;
+    const max = last?.max_price ?? last?.p75_price ?? null;
 
-    // delta
-    const delta =
-      data?.delta?.median_abs ??
-      data?.delta?.typical_abs ??
-      data?.delta ??
-      null;
+    const deltaTypical =
+      (delta?.median_abs ?? delta?.avg_abs ?? null);
 
-    safeText($("kpiTypical"), typical == null ? "—" : formatMoneyUAH(typical));
-    safeText($("kpiRange"), (min == null || max == null) ? "—" : `${formatMoneyUAH(min)} — ${formatMoneyUAH(max)}`);
-    safeText($("kpiCount"), count == null ? "—" : String(count));
-    safeText($("kpiDelta"), delta == null ? "—" : formatMoneyUAH(delta));
+    safeText($("kpiTypical"), typical === null ? "—" : formatMoney(typical, currency));
+    safeText($("kpiCount"), (count === null || count === undefined) ? "—" : String(count));
+
+    if (min !== null && max !== null) {
+      safeText($("kpiRange"), `${formatMoney(min, currency)} — ${formatMoney(max, currency)}`);
+    } else {
+      safeText($("kpiRange"), "—");
+    }
+
+    if (deltaTypical !== null && deltaTypical !== undefined) {
+      const sign = Number(deltaTypical) > 0 ? "+" : "";
+      safeText($("kpiDelta"), `${sign}${formatMoney(deltaTypical, currency)}`);
+    } else if (prev && last) {
+      // fallback if delta absent
+      const a = Number(prev?.median_price ?? prev?.avg_price ?? NaN);
+      const b = Number(last?.median_price ?? last?.avg_price ?? NaN);
+      if (Number.isFinite(a) && Number.isFinite(b)) {
+        const d = b - a;
+        const sign = d > 0 ? "+" : "";
+        safeText($("kpiDelta"), `${sign}${formatMoney(d, currency)}`);
+      } else {
+        safeText($("kpiDelta"), "—");
+      }
+    } else {
+      safeText($("kpiDelta"), "—");
+    }
   }
 
   async function loadMarket() {
     const err = $("marketError");
-    setError(err, "");
     const hint = $("marketHint");
+    setError(err, "");
     safeText(hint, "");
 
-    const project = String($("marketProject")?.value || "");
+    const token = getToken();
+    if (!token) {
+      setError(err, "Увійдіть в акаунт, щоб завантажити аналітику.");
+      return;
+    }
+
+    const sel = $("marketProject");
+    const project = String(sel?.value || "");
     if (!project) {
       setError(err, "Оберіть проект.");
       return;
     }
 
-    const points = Number($("marketPoints")?.value || 30);
-    const offset = Number($("marketOffset")?.value || 0);
-    const reliable = !!$("marketReliable")?.checked;
+    const pointsEl = $("marketPoints");
+    const relEl = $("marketReliable");
 
-    const params = new URLSearchParams();
-    params.set("points", String(Math.max(5, Math.min(30, Number.isFinite(points) ? points : 30))));
-    params.set("offset", String(Number.isFinite(offset) && offset >= 0 ? offset : 0));
-    params.set("reliable", reliable ? "true" : "false");
+    const points = Number(pointsEl?.value || DEFAULT_HISTORY_LIMIT);
+    const limit = Math.max(1, Math.min(200, Number.isFinite(points) ? points : DEFAULT_HISTORY_LIMIT));
+    const onlyValid = !!relEl?.checked;
+
+    // offset = marketOffset (0,1,2...) — как у тебя в UI "Попередні/Наступні"
+    const offset = marketOffset;
 
     try {
-      showToast("Завантажуємо аналітику...");
-      // ✅ ВАЖНО: project_id теперь в PATH, как в Swagger
-      const data = await apiJSON(`${ROUTES.market(project)}?${params.toString()}`, {
-        method: "GET",
-        headers: { "Accept": "application/json" },
+      safeText(hint, "Завантаження…");
+
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
+      params.set("offset", String(Math.max(0, offset)));
+      params.set("only_valid", onlyValid ? "true" : "false");
+
+      const data = await apiGetJson(`/olx/projects/${encodeURIComponent(project)}/market/history?${params.toString()}`, {
+        headers: { ...authHeaders() },
       });
 
       applyMarketKpi(data);
+      safeText(hint, `Готово. offset=${marketOffset}`);
       showToast("✅ Готово.");
-      safeText(hint, `offset: ${params.get("offset")} • points: ${params.get("points")}`);
     } catch (e) {
       setError(err, e?.message || "Не вдалося завантажити аналітику.");
+      safeText(hint, "");
     }
   }
 
   function initMarket() {
-    const btn = $("btnMarketLoad");
-    if (btn) btn.addEventListener("click", loadMarket);
+    const btnLoad = $("btnMarketLoad");
+    if (btnLoad) btnLoad.addEventListener("click", loadMarket);
 
-    // Prev / Next -> offset +/- points (или 1, если хочешь)
     const btnPrev = $("btnPrev");
-    const btnNext = $("btnNext");
-
     if (btnPrev) {
       btnPrev.addEventListener("click", () => {
-        const offEl = $("marketOffset");
-        const points = Number($("marketPoints")?.value || 30);
-        const cur = Number(offEl?.value || 0);
-        const step = Number.isFinite(points) ? points : 30;
-        const nextVal = Math.max(0, cur + step); // "попередні" = глубже в историю
-        if (offEl) offEl.value = String(nextVal);
+        marketOffset = Math.max(0, marketOffset + OFFSET_STEP);
         loadMarket();
       });
     }
 
+    const btnNext = $("btnNext");
     if (btnNext) {
       btnNext.addEventListener("click", () => {
-        const offEl = $("marketOffset");
-        const points = Number($("marketPoints")?.value || 30);
-        const cur = Number(offEl?.value || 0);
-        const step = Number.isFinite(points) ? points : 30;
-        const nextVal = Math.max(0, cur - step); // "наступні" = ближе к текущему
-        if (offEl) offEl.value = String(nextVal);
+        marketOffset = Math.max(0, marketOffset - OFFSET_STEP);
         loadMarket();
-      });
-    }
-
-    // Save Query (пока локально)
-    const btnSave = $("btnSaveQuery");
-    if (btnSave) {
-      btnSave.addEventListener("click", () => {
-        const project = String($("marketProject")?.value || "");
-        if (!project) {
-          showToast("Спочатку оберіть проект.");
-          return;
-        }
-        const item = {
-          project_id: project,
-          points: Number($("marketPoints")?.value || 30),
-          offset: Number($("marketOffset")?.value || 0),
-          reliable: !!$("marketReliable")?.checked,
-          saved_at: new Date().toISOString(),
-        };
-
-        const key = "sellcase_saved_queries";
-        const arr = JSON.parse(localStorage.getItem(key) || "[]");
-        arr.unshift(item);
-        localStorage.setItem(key, JSON.stringify(arr.slice(0, 20)));
-        renderSavedQueries();
-        showToast("✅ Збережено.");
       });
     }
   }
 
-  /* =========================
-     QUERIES (локальный MVP)
-  ========================= */
+  /* -------------------- Queries (MVP: local save) -------------------- */
+  const SAVED_QUERIES_KEY = "sellcase_saved_queries";
+
+  function loadSavedQueries() {
+    try {
+      const raw = localStorage.getItem(SAVED_QUERIES_KEY) || "[]";
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveSavedQueries(arr) {
+    localStorage.setItem(SAVED_QUERIES_KEY, JSON.stringify(arr || []));
+  }
+
   function renderSavedQueries() {
-    const box = $("savedQueries");
-    if (!box) return;
-    const arr = JSON.parse(localStorage.getItem("sellcase_saved_queries") || "[]");
-    if (!arr.length) {
-      box.textContent = "—";
+    const el = $("savedQueries");
+    if (!el) return;
+
+    const items = loadSavedQueries();
+    if (!items.length) {
+      el.textContent = "—";
       return;
     }
-    box.innerHTML = arr
+
+    el.innerHTML = items
+      .slice()
+      .reverse()
       .map((q) => {
-        const when = (q.saved_at || "").slice(0, 19).replace("T", " ");
-        return `• project_id: <b>${q.project_id}</b> • points: ${q.points} • offset: ${q.offset} • reliable: ${q.reliable ? "yes" : "no"} <span class="hint">(${when})</span>`;
+        return `
+          <div style="padding:10px 12px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;box-shadow:0 8px 18px rgba(2,6,23,.06);margin:8px 0;">
+            <div style="font-weight:1200;">${escapeHtml(q.text || "—")}</div>
+            <div style="margin-top:4px;color:#6b7280;font-weight:800;font-size:12px;">
+              ${q.category ? "Категорія: " + escapeHtml(q.category) + " • " : ""}${escapeHtml(q.created_at || "")}
+            </div>
+          </div>
+        `;
       })
-      .join("<br/>");
+      .join("");
   }
 
   function initQueries() {
-    const btn = $("btnRunQuery");
-    if (btn) {
-      btn.addEventListener("click", () => {
-        // пока заглушка (у тебя будет полноценный search/router)
-        const txt = String($("queryText")?.value || "").trim();
-        if (!txt) return showToast("Введіть запит.");
-        showToast("🔎 Поки що MVP: збереження/структура. Search підключимо наступним кроком.");
+    const btnRun = $("btnRunQuery");
+    if (btnRun) {
+      btnRun.addEventListener("click", async () => {
+        // Сейчас у тебя на странице MVP. Чтобы не ломать — просто "заглушка"
+        showToast("MVP: Search підключимо наступним кроком.");
       });
     }
+
+    const btnSave = $("btnSaveQuery");
+    if (btnSave) {
+      btnSave.addEventListener("click", () => {
+        const text = String($("queryText")?.value || "").trim();
+        const category = String($("queryCategory")?.value || "").trim();
+
+        if (!text) {
+          showToast("Введіть запит, щоб зберегти.");
+          return;
+        }
+
+        const items = loadSavedQueries();
+        items.push({
+          text,
+          category: category || "",
+          created_at: new Date().toISOString(),
+        });
+        saveSavedQueries(items);
+        renderSavedQueries();
+        showToast("✅ Запит збережено.");
+      });
+    }
+
     renderSavedQueries();
   }
 
-  /* =========================
-     BOOT
-  ========================= */
+  /* -------------------- Small utilities -------------------- */
+  function escapeHtml(s) {
+    return String(s || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  // Fix logo if Render/paths glitch
+  function fixHeaderLogo() {
+    const imgs = document.querySelectorAll("img");
+    imgs.forEach((img) => {
+      // if broken, keep alt visible (browser default may hide)
+      // nothing heavy here
+    });
+  }
+
+  /* -------------------- Boot -------------------- */
   async function boot() {
     initNav();
     initAuth();
-    initProjects();
     initQueries();
+    initProjects();
     initMarket();
 
-    await pingServer();
+    fixHeaderLogo();
+    setTimeout(fixHeaderLogo, 200);
+    setTimeout(fixHeaderLogo, 800);
 
-    // если есть токен — попробуем подтянуть данные
-    if (getToken()) {
-      try {
-        await loadProjectsSilently();
-        await loadMeSilently();
-      } catch {
-        // токен мог протухнуть — сбросим
-        setToken("");
-        uiAfterLogout();
-      }
-    } else {
-      uiAfterLogout();
-    }
+    await pingServer();
+    setInterval(pingServer, PING_INTERVAL_MS);
+
+    await loadMeSilently();
+    await loadProjectsSilently();
   }
 
   document.addEventListener("DOMContentLoaded", boot);
