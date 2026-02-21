@@ -641,34 +641,73 @@
   }
 
   async function runQuery() {
-    // Если бэкенд-эндпоинта нет — хотя бы не “болванка”: сохраняем и показываем,
-    // а также делаем понятное сообщение.
-    const text = (queryText?.value || "").trim();
-    const category = (queryCategory?.value || "").trim();
-    if (!text) { showToast("Введіть запит"); return; }
+  const text = (queryText?.value || "").trim();
+  const category = (queryCategory?.value || "").trim();
 
-    // try backend if exists
-    if (EP.queriesRun && getToken()) {
-      try {
-        // предположим JSON body
-        const data = await apiJson(EP.queriesRun, "POST", { text, category });
-        showToast("Запит виконано ✅");
-        // тут можно будет отрисовать результат, когда утвердим формат
-        console.log("Query result:", data);
-      } catch (e) {
-        console.warn("Query run failed:", e);
-        showToast("Запити поки не відповідають (API). Збережено локально.");
-      }
-    } else {
-      showToast("Запити поки не підключені на API. Збережено локально.");
+  if (!text) { showToast("Введіть запит"); return; }
+  if (!getToken()) { showToast("Спочатку увійдіть в акаунт"); return; }
+
+  // 1) Создаем проект под запрос (name=text, search_url строим)
+  // ВАЖНО: это “универсальный” поиск OLX по Украине. Если у тебя другая страна/домен — скажешь, поправлю.
+  const q = encodeURIComponent(text);
+  const searchUrl = `https://www.olx.ua/d/uk/list/q-${q}/`;
+
+  setError(accountError, "");
+  showToast("Створюю проект…");
+
+  try {
+    const proj = await apiJson(EP.projectsCreate, "POST", {
+      name: text,
+      search_url: searchUrl,
+      notes: category ? `category=${category}` : ""
+    });
+
+    const projectId = proj?.id;
+    if (!projectId) throw new Error("Project created, but id missing");
+
+    // 2) Триггерим snapshot/парсинг (если эндпоинт существует)
+    if (!EP.snapshot) {
+      showToast("Не знайдено API для snapshot/parse. Дай 1 скрин з /docs де є snapshot/parse.");
+      // все равно обновим списки, чтобы проект появился
+      await loadProjectsIntoUI();
+      await loadProjectsSelect();
+      return;
     }
 
-    // Always save locally so it’s not пусто
-    const list = loadSavedLocal();
-    list.push({ text, category, at: new Date().toISOString() });
-    saveSavedLocal(list);
-    renderSavedLocal();
+    showToast("Збираю дані (snapshot)…");
+
+    // EP.snapshot обычно содержит {project_id}
+    const snapPath = formatPath(EP.snapshot, { project_id: projectId });
+
+    // Некоторые реализации ждут query max_pages, некоторые body.
+    // Сначала пробуем без body.
+    try {
+      await apiFetch(snapPath, { method: "POST" });
+    } catch (e1) {
+      // fallback: пробуем с body {max_pages:3}
+      try {
+        await apiJson(snapPath, "POST", { max_pages: 3 });
+      } catch (e2) {
+        throw (e2?.payload ? e2 : e1);
+      }
+    }
+
+    // 3) Обновляем UI: проекты, селект, и показываем market по новому проекту
+    await loadProjectsIntoUI();
+    await loadProjectsSelect();
+
+    if (marketProject) marketProject.value = String(projectId);
+    showSection("market");
+
+    await loadMarket();
+
+    showToast("Готово ✅");
+  } catch (e) {
+    const msg = safeMsg(e.payload || e);
+    showToast("Запит не виконався");
+    setError(accountError, msg);
   }
+}
 
   function saveCurrentQuery() {
     const text = (queryText?.value || "").trim() || "(порожній)";
